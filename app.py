@@ -16,11 +16,68 @@ GERMAN_WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 LOGO_PATH = 'acp_logo.png' 
 
 # --- INITIALE DATEN (Hier Standorte eintragen) ---
-# Format: "Standortname": Anzahl_Slots
+# Format: "Standortname": ["Slot1", "Slot2", ...]
 INITIAL_LOCATIONS = {
-    "Haupttor": 3,       # Erstellt MA1, MA2, MA3
-    "Empfang": 1,        # Erstellt MA1
-    "Werkschutz": 2      # Erstellt MA1, MA2
+    "0278 Darmstadt": ["278 - Darmstadt"],
+    "0530 Megastore Cologne": ["530 -  Megastore Cologne"],
+    "0537 Berlin Karl-Marx-Str.": ["0537 Berlin Karl-Marx-Str."],
+    "0562 Hamburg Billstedt ": ["0562 Hamburg Billstedt"],
+    "0695 Nürnberg": ["0695 Nürnberg"],
+    "0827 Mannheim": ["0827 Mannheim"],
+    "0976 Essen": ["976 Essen"],
+    "1069 Bremen Waterfront": ["1069 Bremen Waterfront"],
+    "1101 Bonn": ["1101 Bonn"],
+    "1156 Bielefeld Loom": ["1156 Bielefeld Loom"],
+    "1203 Dortmund": ["1203 Dortmund"],
+    "1336 Hannover": ["1336 Hannover"],
+    "1354 Wiesbaden": ["1354 Wiesbaden"],
+    "1355 Frankfurt Nord West Zentrum": ["1355 Frankfurt Nord West Zentrum"],
+    "1367 Düsseldorf Mega": ["1367 - Düsseldorf Mega"],
+    "1413 Alexanderplatz": ["1413 - Alexanderplatz"],
+    "1476 Dresden": ["1476 Dresden"],
+    "1624 Stuttgart Königsstraße ": ["1624 Königsstraße Stuttgart"],
+    "1739 Berlin Tauentzienstr.": ["1739 Berlin Tauentzienstr."],
+    "1781Offenbach": ["1781Offenbach"],
+    "1997 Oberhausen": ["1997 Oberhausen"],
+    "2063 MTZ Main Taunus Zentrum": ["2063 MTZ Main Taunus Zentrum"],
+    "2115 Mall of Berlin": ["2115 - Mall of Berlin"],
+    "2125 Hamburg Hafencity": ["2125 Hamburg Hafencity"],
+    "2127 Frankfurt My Zeil": ["2127 Frankfurt My Zeil MA 1"],
+    "2127 Frankfurt MyZeil": ["2127 Frankfurt MyZeil MA 2"],
+    "2147 Trier Galerie": ["MA 1"],
+    "2217 München Kaufingerstraße ": ["MA 1", "MA 2"],
+    "2303 Gesundbrunnen": ["2303 Gesundbrunnen"],
+    "829 Duisburg": ["829 Duisburg"],
+    "Arcese Louis Vuitton Lager Köln Arcese": ["MA1 Innen", "MA2 Aussen", "MA3 Aussen Nacht", "MA4"],
+    "Balenciaga Hamburg": ["MA1", "MA2", "MA3"],
+    "Balenciaga Ingolstadt": ["MA1", "MA2", "Pause (auf Abruf)"],
+    "Breuninger Düsseldorf": ["MA 2", "MA 3", "MA1", "MA4"],
+    "Breuninger Veranstaltung Extrabestellungen": ["MA1", "MA2", "MA3", "MA4", "MA5", "MA6", "MA7", "MA8"],
+    "DSV Stuttgart GmbH & Co. KG": ["MA1", "MA2", "MA3"],
+    "Dior Düsseldorf neuer Store Königsallee 19 ": ["MA 3", "MA 4", "MA 5", "MA 6", "MA 7", "MA1", "MA2"],
+    "Fendi Düsseldorf": ["MA1", "Pause Ablöser"],
+    "Fendi München": ["MA1", "MA2", "MA3"],
+    "Gucci Düsseldorf": ["MA1", "MA2"],
+    "Gucci Hamburg Neuer Wall": ["MA1", "MA2", "MA3 Zusatz", "MA4 Zusatz"],
+    "Hogan Düsseldorf": ["MA1", "MA2"],
+    "JVA Willich": ["MA1"],
+    "Marokanisches Konsulat": ["MA1"],
+    "Moviepark": ["MA 10", "MA 11", "MA 12", "MA 13", "MA 14", "MA 15", "MA 16", "MA 17", "MA 18", "MA 19", "MA 20", "MA 21", "MA 6", "MA 7", "MA 8", "MA 9", "MA1", "MA2", "MA3", "MA4", "MA5"],
+    "PWC Security Sodexo": ["Sodexo MA1 Sicherheitskraft"],
+    "Personenschutz Israelische Delegation ": ["MA 6", "MA1", "MA2", "MA3", "MA4", "MA5"],
+    "Prada Düsseldorf": ["MA2", "Prada Düsseldorf"],
+    "PwC Empfang ": ["PWC MA1 Empfang"],
+    "Rathaus Neuss": ["MA1", "MA2", "MA3"],
+    "Saint Laurent Düsseldorf in Breuninger": ["MA1", "MA2"],
+    "Sitec BLB Schwannstraße 10": ["MA 2", "MA 3", "MA 4", "MA1"],
+    "Sitec HSD": ["MA 6", "MA1", "MA2", "MA3", "MA4", "MA5"],
+    "Sitec WDR Rolltor": ["MA 4", "MA 5", "MA1", "MA2", "MA3"],
+    "Sitec Ü-Wagen Neuss": ["MA 1", "MA 2"],
+    "Tods Düsseldorf": ["MA1", "MA2"],
+    "Walbrecht Brandschutz Köln": ["MA1", "MA2", "MA3", "MA4"],
+    "Wohnbau Niederkasseler Lohweg Tiefgarage ": ["MA1", "MA2", "MA3", "MA4"],
+    "YSL Hamburg": ["MA1", "MA2"],
+    "ZDF Volle Kanne": ["MA 1", "MA 2"]
 }
 
 # --- BENUTZER & PASSWÖRTER ---
@@ -72,15 +129,22 @@ def seed_initial_data(conn):
     """Fügt Start-Daten in die Datenbank ein, falls diese noch nicht existieren."""
     cursor = conn.cursor()
     try:
-        for loc_name, num_slots in INITIAL_LOCATIONS.items():
-            # Prüfen ob Standort schon existiert
-            cursor.execute(f"SELECT count(*) FROM locations_spalte WHERE `{OBJECT_COLUMN_NAME}` = %s", (loc_name,))
-            if cursor.fetchone()[0] == 0:
-                # Anlegen
-                for i in range(1, num_slots + 1):
-                    slot = f"MA{i}"
-                    cursor.execute(f"INSERT INTO locations_spalte (`{OBJECT_COLUMN_NAME}`, `{MA_SLOT_COLUMN_NAME}`) VALUES (%s, %s)", (loc_name, slot))
-        conn.commit()
+        # OPTIMIERUNG: Nur 1 Abfrage statt 100 Abfragen
+        cursor.execute(f"SELECT DISTINCT `{OBJECT_COLUMN_NAME}` FROM locations_spalte")
+        existing_locs = {row[0] for row in cursor.fetchall()}
+
+        new_data = []
+        # Wir prüfen im Python-Speicher, was fehlt (viel schneller)
+        for loc_name in INITIAL_LOCATIONS:
+            if loc_name not in existing_locs:
+                for slot in INITIAL_LOCATIONS[loc_name]:
+                    new_data.append((loc_name, slot))
+        
+        # Massen-Insert (nur 1 Befehl an die Datenbank)
+        if new_data:
+            cursor.executemany(f"INSERT INTO locations_spalte (`{OBJECT_COLUMN_NAME}`, `{MA_SLOT_COLUMN_NAME}`) VALUES (%s, %s)", new_data)
+            conn.commit()
+            
     except Exception as e:
         print(f"Info: Initialdaten konnten nicht vollständig angelegt werden (vielleicht existieren sie schon): {e}")
     finally:
@@ -402,6 +466,9 @@ def seite_stammdaten_verwaltung(conn):
         df_show.insert(0, "Auswahl", False)
         if search: df_show = df_show[df_show['Mitarbeitername'].str.contains(search, case=False, na=False)]
         
+        # Sortieren der Anzeige
+        df_show = df_show.sort_values(by="Mitarbeitername")
+
         col_config = {
             "Auswahl": st.column_config.CheckboxColumn("Edit", width="small"),
             "Mitarbeitername": st.column_config.TextColumn("Name", width="medium")
@@ -446,6 +513,7 @@ def seite_stammdaten_verwaltung(conn):
                 disabled=df_grp.columns.drop("Auswahl"),
                 hide_index=True,
                 use_container_width=True,
+                height=1000, # Increased height
                 key=f"editor_loc_{st.session_state.loc_editor_key}"
             )
             
@@ -458,7 +526,9 @@ def seite_stammdaten_verwaltung(conn):
         with st.form("uk"):
             c1,c2,c3=st.columns(3)
             dates = c1.date_input("Zeitraum", [], help="Start & Ende wählen")
-            ma = c2.selectbox("Mitarbeiter", [""]+df_ma['Mitarbeitername'].unique().tolist())
+            # Sortierte Mitarbeiterliste für Dropdown
+            ma_list_sorted = sorted(df_ma['Mitarbeitername'].unique().tolist())
+            ma = c2.selectbox("Mitarbeiter", [""]+ma_list_sorted)
             stat = c3.selectbox("Status", ["Urlaub","Krank","Ausfall","Standby"])
             if st.form_submit_button("Speichern", type="primary"):
                 if ma and dates:
@@ -481,7 +551,10 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     month_options = [datetime(2000, m, 1).strftime("%B") for m in range(1, 13)]
 
     st.sidebar.header("Filter")
-    obj = st.sidebar.selectbox("Objekt:", df_loc[OBJECT_COLUMN_NAME].unique())
+    # Sortierte Standorte in Sidebar
+    sorted_locs = sorted(df_loc[OBJECT_COLUMN_NAME].unique())
+    obj = st.sidebar.selectbox("Objekt:", sorted_locs)
+    
     selected_year = st.sidebar.selectbox("Jahr:", year_options, index=year_options.index(today.year))
     selected_month_name = st.sidebar.selectbox("Monat:", month_options, index=today.month - 1)
     
@@ -496,7 +569,8 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     st.subheader(f"Plan: {obj}{info_str} - {selected_month_str}")
 
     slots = df_loc[df_loc[OBJECT_COLUMN_NAME]==obj][MA_SLOT_COLUMN_NAME].unique().tolist()
-    try: slots.sort(key=lambda x: int(x.replace("MA","")) if x.startswith("MA") and x[2:].isdigit() else x)
+    # Sortiere Slots alphabetisch
+    try: slots.sort() 
     except: pass
     
     df_saved = load_einsaetze_for_object(conn, obj)
