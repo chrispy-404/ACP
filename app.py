@@ -76,7 +76,18 @@ def float_to_input_str(val):
     if hours >= 24: hours = 23; mins = 59
     return f"{hours:02d}:{mins:02d}"
 
+def safe_get_value(val):
+    """Extrahiert sicher einen einzelnen Wert, egal ob Scalar, Series oder Array."""
+    if isinstance(val, (pd.Series, np.ndarray, list)):
+        if len(val) > 0:
+            if hasattr(val, 'iloc'): return val.iloc[0]
+            if hasattr(val, 'item'): return val.item()
+            return val[0]
+        return None
+    return val
+
 def parse_user_time(val_str):
+    val_str = safe_get_value(val_str)
     if not val_str: return 0.0
     s = str(val_str).strip().replace(',', '.')
     try:
@@ -102,10 +113,9 @@ def calculate_arbeitszeit(anfang_zeit_float, ende_zeit_float, pause_zeit_std):
     return max(0.0, arbeitszeit_stunden)
 
 def validate_einsatz(urlaub_krank_df, mitarbeiter_name, einsatz_datum):
-    # Safety Check: Falls mitarbeiter_name doch eine Series ist (durch Duplikate), nimm den ersten Wert
-    if isinstance(mitarbeiter_name, pd.Series):
-        mitarbeiter_name = mitarbeiter_name.iloc[0]
-        
+    mitarbeiter_name = safe_get_value(mitarbeiter_name)
+    if not mitarbeiter_name: return True, "OK"
+
     if isinstance(einsatz_datum, str):
         try: einsatz_datum = datetime.strptime(einsatz_datum, DATE_FORMAT).date()
         except: pass 
@@ -122,10 +132,7 @@ def validate_einsatz(urlaub_krank_df, mitarbeiter_name, einsatz_datum):
     return True, "OK"
 
 def check_double_booking(conn, mitarbeiter, datum, start_float, end_float, current_object):
-    # Safety Check
-    if isinstance(mitarbeiter, pd.Series):
-        mitarbeiter = mitarbeiter.iloc[0]
-
+    mitarbeiter = safe_get_value(mitarbeiter)
     if not mitarbeiter or (start_float == 0 and end_float == 0):
         return False, ""
     
@@ -174,10 +181,7 @@ def save_einsaetze_to_db(conn, df_einsaetze, object_name, start_date, end_date):
         if not df_einsaetze.empty:
             data = []
             for _, row in df_einsaetze.iterrows():
-                # Safety checks für Werte
-                ma = row['Mitarbeiter']
-                if isinstance(ma, pd.Series): ma = ma.iloc[0]
-                
+                ma = safe_get_value(row['Mitarbeiter'])
                 data.append((row['Datum'], row['Objekt'], row['MA_Slot'], row['Anfang'], row['Ende'], row['Pause'], ma, row['Zeit']))
             
             sql = "INSERT INTO einsaetze (Datum, Objekt, MA_Slot, Anfang, Ende, Pause, Mitarbeiter, Zeit) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
@@ -207,7 +211,6 @@ def update_standort(conn, alter_name, neuer_name, neue_slot_anzahl, aktuelle_slo
         if alter_name != neuer_name: 
             cursor.execute("UPDATE einsaetze SET Objekt = %s WHERE Objekt = %s", (neuer_name, alter_name))
             
-        # Vereinfachte Slot Logik: Nur hinzufügen
         aktuelle_anzahl = len(aktuelle_slots)
         if neue_slot_anzahl > aktuelle_anzahl:
             for i in range(aktuelle_anzahl + 1, neue_slot_anzahl + 1):
@@ -549,21 +552,10 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
                  except: pass
 
             for s in slots:
-                ma = row[f'{s}_Mitarbeiter']
-                # FIX: Handle Series (Duplicate Columns Issue)
-                if isinstance(ma, pd.Series): ma = ma.iloc[0]
-                
+                ma = safe_get_value(row[f'{s}_Mitarbeiter'])
                 a_float = parse_user_time(row[f'{s}_Anfang'])
-                # FIX: Handle Series
-                if isinstance(a_float, pd.Series): a_float = a_float.iloc[0]
-                
                 e_float = parse_user_time(row[f'{s}_Ende'])
-                # FIX: Handle Series
-                if isinstance(e_float, pd.Series): e_float = e_float.iloc[0]
-                
-                p = row[f'{s}_Pause'] or 0.0
-                # FIX: Handle Series
-                if isinstance(p, pd.Series): p = p.iloc[0]
+                p = safe_get_value(row[f'{s}_Pause']) or 0.0
                 
                 if ma or a_float>0 or e_float>0:
                     if ma:
