@@ -529,20 +529,22 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
 
     st.markdown("---")
     
-    # CONTAINER FÜR TABELLE (Stabilisierung)
-    with st.container():
+    # Formular für Batch-Input (verhindert Reload nach jeder Zelle)
+    with st.form("planning_form"):
         edited = st.data_editor(
-            df_plan[ordered_cols], # UNGESTYLT für Performance
+            df_plan[ordered_cols], 
             column_config=col_cfg, 
             height=700, 
             use_container_width=True, 
             hide_index=True
         )
+        
+        submit_btn = st.form_submit_button("💾 Plan Speichern", type="primary")
     
     # --- FEHLERMELDUNGEN SAMMELN ---
     error_messages = []
 
-    if st.button("💾 Plan Speichern", type="primary"):
+    if submit_btn:
         load_einsaetze_for_object.clear(); rows=[]; total=0.0
         
         for idx, row in edited.iterrows():
