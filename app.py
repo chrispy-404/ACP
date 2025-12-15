@@ -395,6 +395,22 @@ def seite_stammdaten_verwaltung(conn):
 
     with t2:
         if st.button("➕ Neuer Standort"): dialog_neuer_standort(conn)
+        
+        with st.expander("⚠️ Verwaltungs-Tools (Datenbank bereinigen)"):
+            st.warning("Achtung: Dies löscht alle Standorte aus der Datenbank!")
+            if st.button("Alle Standorte löschen", type="primary"):
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(f"DELETE FROM locations_spalte")
+                    conn.commit()
+                    st.success("Alle Standorte wurden entfernt.")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(str(e))
+                finally:
+                    cursor.close()
+
         if not df_loc.empty:
             df_grp = df_loc.groupby(OBJECT_COLUMN_NAME).agg({
                 MA_SLOT_COLUMN_NAME: list,
