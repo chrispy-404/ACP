@@ -489,8 +489,8 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     df_saved = load_einsaetze_for_object(conn, obj)
     rng = pd.date_range(d_start, d_end).normalize().date
     df_plan = pd.DataFrame({'Datum': rng})
-    # Wochentag im Datum Text für Anzeige
-    df_plan['Datum_Tag'] = df_plan['Datum'].apply(lambda d: f"{d.strftime('%d.%m.%Y')} ({GERMAN_WEEKDAYS[d.weekday()]})")
+    # Wochentag im Datum Text für Anzeige (Wochenende markieren)
+    df_plan['Datum_Tag'] = df_plan['Datum'].apply(lambda d: f"{'🟥 ' if d.weekday() >= 5 else ''}{d.strftime('%d.%m.%Y')} ({GERMAN_WEEKDAYS[d.weekday()]})")
     
     # FIX: Datum Spalte "medium" -> Mehr Platz für '01.01.2025 (Do)'
     col_cfg = {"Datum": None} 
