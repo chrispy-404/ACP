@@ -11,9 +11,17 @@ from dateutil.relativedelta import relativedelta
 st.set_page_config(page_title="Digitale Einsatzplanung", layout="wide")
 
 # --- 2. KONSTANTEN ---
-DATE_FORMAT = '%Y-%m-%d'
+DATE_FORMAT = '%Y-%m-%d' 
 GERMAN_WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
-LOGO_PATH = 'acp_logo.png'
+LOGO_PATH = 'acp_logo.png' 
+
+# --- INITIALE DATEN (Hier Standorte eintragen) ---
+# Format: "Standortname": Anzahl_Slots
+INITIAL_LOCATIONS = {
+    "Haupttor": 3,       # Erstellt MA1, MA2, MA3
+    "Empfang": 1,        # Erstellt MA1
+    "Werkschutz": 2      # Erstellt MA1, MA2
+}
 
 # --- BENUTZER & PASSWÖRTER ---
 USER_CREDENTIALS = {
@@ -23,9 +31,9 @@ USER_CREDENTIALS = {
 }
 
 # --- 3. KONFIGURATION ---
-OBJECT_COLUMN_NAME = 'Objektname'
-MA_SLOT_COLUMN_NAME = 'MA_Slot'
-DB_DATE_COL = 'Datum'
+OBJECT_COLUMN_NAME = 'Objektname' 
+MA_SLOT_COLUMN_NAME = 'MA_Slot' 
+DB_DATE_COL = 'Datum' 
 
 # --- 4. DATENBANK VERBINDUNG (MySQL/TiDB) ---
 def get_db_connection():
@@ -60,10 +68,33 @@ def init_db():
     cursor.close()
     conn.close()
 
-# Einmalige Initialisierung der Tabellen beim Start
+def seed_initial_data(conn):
+    """Fügt Start-Daten in die Datenbank ein, falls diese noch nicht existieren."""
+    cursor = conn.cursor()
+    try:
+        for loc_name, num_slots in INITIAL_LOCATIONS.items():
+            # Prüfen ob Standort schon existiert
+            cursor.execute(f"SELECT count(*) FROM locations_spalte WHERE `{OBJECT_COLUMN_NAME}` = %s", (loc_name,))
+            if cursor.fetchone()[0] == 0:
+                # Anlegen
+                for i in range(1, num_slots + 1):
+                    slot = f"MA{i}"
+                    cursor.execute(f"INSERT INTO locations_spalte (`{OBJECT_COLUMN_NAME}`, `{MA_SLOT_COLUMN_NAME}`) VALUES (%s, %s)", (loc_name, slot))
+        conn.commit()
+    except Exception as e:
+        print(f"Info: Initialdaten konnten nicht vollständig angelegt werden (vielleicht existieren sie schon): {e}")
+    finally:
+        cursor.close()
+
+# Einmalige Initialisierung beim Start
 if 'db_initialized' not in st.session_state:
     try:
         init_db()
+        # Automatisch Standorte anlegen
+        conn = get_db_connection()
+        seed_initial_data(conn)
+        conn.close()
+        
         st.session_state['db_initialized'] = True
     except Exception as e:
         st.error(f"Fehler bei der DB-Initialisierung: {e}")
@@ -371,9 +402,6 @@ def seite_stammdaten_verwaltung(conn):
         df_show.insert(0, "Auswahl", False)
         if search: df_show = df_show[df_show['Mitarbeitername'].str.contains(search, case=False, na=False)]
         
-        # Sortieren der Anzeige
-        df_show = df_show.sort_values(by="Mitarbeitername")
-
         col_config = {
             "Auswahl": st.column_config.CheckboxColumn("Edit", width="small"),
             "Mitarbeitername": st.column_config.TextColumn("Name", width="medium")
@@ -395,22 +423,6 @@ def seite_stammdaten_verwaltung(conn):
 
     with t2:
         if st.button("➕ Neuer Standort"): dialog_neuer_standort(conn)
-        
-        with st.expander("⚠️ Verwaltungs-Tools (Datenbank bereinigen)"):
-            st.warning("Achtung: Dies löscht alle Standorte aus der Datenbank!")
-            if st.button("Alle Standorte löschen", type="primary"):
-                cursor = conn.cursor()
-                try:
-                    cursor.execute(f"DELETE FROM locations_spalte")
-                    conn.commit()
-                    st.success("Alle Standorte wurden entfernt.")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(str(e))
-                finally:
-                    cursor.close()
-
         if not df_loc.empty:
             df_grp = df_loc.groupby(OBJECT_COLUMN_NAME).agg({
                 MA_SLOT_COLUMN_NAME: list,
@@ -446,9 +458,7 @@ def seite_stammdaten_verwaltung(conn):
         with st.form("uk"):
             c1,c2,c3=st.columns(3)
             dates = c1.date_input("Zeitraum", [], help="Start & Ende wählen")
-            # Sortierte Mitarbeiterliste für Dropdown
-            ma_list_sorted = sorted(df_ma['Mitarbeitername'].unique().tolist())
-            ma = c2.selectbox("Mitarbeiter", [""]+ma_list_sorted)
+            ma = c2.selectbox("Mitarbeiter", [""]+df_ma['Mitarbeitername'].unique().tolist())
             stat = c3.selectbox("Status", ["Urlaub","Krank","Ausfall","Standby"])
             if st.form_submit_button("Speichern", type="primary"):
                 if ma and dates:
@@ -471,10 +481,7 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     month_options = [datetime(2000, m, 1).strftime("%B") for m in range(1, 13)]
 
     st.sidebar.header("Filter")
-    # Sortierte Standorte in Sidebar
-    sorted_locs = sorted(df_loc[OBJECT_COLUMN_NAME].unique())
-    obj = st.sidebar.selectbox("Objekt:", sorted_locs)
-    
+    obj = st.sidebar.selectbox("Objekt:", df_loc[OBJECT_COLUMN_NAME].unique())
     selected_year = st.sidebar.selectbox("Jahr:", year_options, index=year_options.index(today.year))
     selected_month_name = st.sidebar.selectbox("Monat:", month_options, index=today.month - 1)
     
@@ -489,8 +496,7 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     st.subheader(f"Plan: {obj}{info_str} - {selected_month_str}")
 
     slots = df_loc[df_loc[OBJECT_COLUMN_NAME]==obj][MA_SLOT_COLUMN_NAME].unique().tolist()
-    # Sortiere Slots alphabetisch
-    try: slots.sort() 
+    try: slots.sort(key=lambda x: int(x.replace("MA","")) if x.startswith("MA") and x[2:].isdigit() else x)
     except: pass
     
     df_saved = load_einsaetze_for_object(conn, obj)
