@@ -11,74 +11,9 @@ from dateutil.relativedelta import relativedelta
 st.set_page_config(page_title="Digitale Einsatzplanung", layout="wide")
 
 # --- 2. KONSTANTEN ---
-DATE_FORMAT = '%Y-%m-%d' 
+DATE_FORMAT = '%Y-%m-%d'
 GERMAN_WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
-LOGO_PATH = 'acp_logo.png' 
-
-# --- INITIALE DATEN (Hier Standorte eintragen) ---
-# Format: "Standortname": ["Slot1", "Slot2", ...]
-INITIAL_LOCATIONS = {
-    "0278 Darmstadt": ["278 - Darmstadt"],
-    "0530 Megastore Cologne": ["530 -  Megastore Cologne"],
-    "0537 Berlin Karl-Marx-Str.": ["0537 Berlin Karl-Marx-Str."],
-    "0562 Hamburg Billstedt ": ["0562 Hamburg Billstedt"],
-    "0695 Nürnberg": ["0695 Nürnberg"],
-    "0827 Mannheim": ["0827 Mannheim"],
-    "0976 Essen": ["976 Essen"],
-    "1069 Bremen Waterfront": ["1069 Bremen Waterfront"],
-    "1101 Bonn": ["1101 Bonn"],
-    "1156 Bielefeld Loom": ["1156 Bielefeld Loom"],
-    "1203 Dortmund": ["1203 Dortmund"],
-    "1336 Hannover": ["1336 Hannover"],
-    "1354 Wiesbaden": ["1354 Wiesbaden"],
-    "1355 Frankfurt Nord West Zentrum": ["1355 Frankfurt Nord West Zentrum"],
-    "1367 Düsseldorf Mega": ["1367 - Düsseldorf Mega"],
-    "1413 Alexanderplatz": ["1413 - Alexanderplatz"],
-    "1476 Dresden": ["1476 Dresden"],
-    "1624 Stuttgart Königsstraße ": ["1624 Königsstraße Stuttgart"],
-    "1739 Berlin Tauentzienstr.": ["1739 Berlin Tauentzienstr."],
-    "1781Offenbach": ["1781Offenbach"],
-    "1997 Oberhausen": ["1997 Oberhausen"],
-    "2063 MTZ Main Taunus Zentrum": ["2063 MTZ Main Taunus Zentrum"],
-    "2115 Mall of Berlin": ["2115 - Mall of Berlin"],
-    "2125 Hamburg Hafencity": ["2125 Hamburg Hafencity"],
-    "2127 Frankfurt My Zeil": ["2127 Frankfurt My Zeil MA 1"],
-    "2127 Frankfurt MyZeil": ["2127 Frankfurt MyZeil MA 2"],
-    "2147 Trier Galerie": ["MA 1"],
-    "2217 München Kaufingerstraße ": ["MA 1", "MA 2"],
-    "2303 Gesundbrunnen": ["2303 Gesundbrunnen"],
-    "829 Duisburg": ["829 Duisburg"],
-    "Arcese Louis Vuitton Lager Köln Arcese": ["MA1 Innen", "MA2 Aussen", "MA3 Aussen Nacht", "MA4"],
-    "Balenciaga Hamburg": ["MA1", "MA2", "MA3"],
-    "Balenciaga Ingolstadt": ["MA1", "MA2", "Pause (auf Abruf)"],
-    "Breuninger Düsseldorf": ["MA 2", "MA 3", "MA1", "MA4"],
-    "Breuninger Veranstaltung Extrabestellungen": ["MA1", "MA2", "MA3", "MA4", "MA5", "MA6", "MA7", "MA8"],
-    "DSV Stuttgart GmbH & Co. KG": ["MA1", "MA2", "MA3"],
-    "Dior Düsseldorf neuer Store Königsallee 19 ": ["MA 3", "MA 4", "MA 5", "MA 6", "MA 7", "MA1", "MA2"],
-    "Fendi Düsseldorf": ["MA1", "Pause Ablöser"],
-    "Fendi München": ["MA1", "MA2", "MA3"],
-    "Gucci Düsseldorf": ["MA1", "MA2"],
-    "Gucci Hamburg Neuer Wall": ["MA1", "MA2", "MA3 Zusatz", "MA4 Zusatz"],
-    "Hogan Düsseldorf": ["MA1", "MA2"],
-    "JVA Willich": ["MA1"],
-    "Marokanisches Konsulat": ["MA1"],
-    "Moviepark": ["MA 10", "MA 11", "MA 12", "MA 13", "MA 14", "MA 15", "MA 16", "MA 17", "MA 18", "MA 19", "MA 20", "MA 21", "MA 6", "MA 7", "MA 8", "MA 9", "MA1", "MA2", "MA3", "MA4", "MA5"],
-    "PWC Security Sodexo": ["Sodexo MA1 Sicherheitskraft"],
-    "Personenschutz Israelische Delegation ": ["MA 6", "MA1", "MA2", "MA3", "MA4", "MA5"],
-    "Prada Düsseldorf": ["MA2", "Prada Düsseldorf"],
-    "PwC Empfang ": ["PWC MA1 Empfang"],
-    "Rathaus Neuss": ["MA1", "MA2", "MA3"],
-    "Saint Laurent Düsseldorf in Breuninger": ["MA1", "MA2"],
-    "Sitec BLB Schwannstraße 10": ["MA 2", "MA 3", "MA 4", "MA1"],
-    "Sitec HSD": ["MA 6", "MA1", "MA2", "MA3", "MA4", "MA5"],
-    "Sitec WDR Rolltor": ["MA 4", "MA 5", "MA1", "MA2", "MA3"],
-    "Sitec Ü-Wagen Neuss": ["MA 1", "MA 2"],
-    "Tods Düsseldorf": ["MA1", "MA2"],
-    "Walbrecht Brandschutz Köln": ["MA1", "MA2", "MA3", "MA4"],
-    "Wohnbau Niederkasseler Lohweg Tiefgarage ": ["MA1", "MA2", "MA3", "MA4"],
-    "YSL Hamburg": ["MA1", "MA2"],
-    "ZDF Volle Kanne": ["MA 1", "MA 2"]
-}
+LOGO_PATH = 'acp_logo.png'
 
 # --- BENUTZER & PASSWÖRTER ---
 USER_CREDENTIALS = {
@@ -88,21 +23,14 @@ USER_CREDENTIALS = {
 }
 
 # --- 3. KONFIGURATION ---
-OBJECT_COLUMN_NAME = 'Objektname' 
-MA_SLOT_COLUMN_NAME = 'MA_Slot' 
-DB_DATE_COL = 'Datum' 
+OBJECT_COLUMN_NAME = 'Objektname'
+MA_SLOT_COLUMN_NAME = 'MA_Slot'
+DB_DATE_COL = 'Datum'
 
 # --- 4. DATENBANK VERBINDUNG (MySQL/TiDB) ---
 def get_db_connection():
-    # Holt die Daten aus den Streamlit Secrets
     try:
-        conn = mysql.connector.connect(
-            host=st.secrets["mysql"]["host"],
-            port=st.secrets["mysql"]["port"],
-            user=st.secrets["mysql"]["user"],
-            password=st.secrets["mysql"]["password"],
-            database=st.secrets["mysql"]["database"]
-        )
+        conn = mysql.connector.connect(**st.secrets["mysql"])
         return conn
     except Exception as e:
         st.error(f"Datenbank-Verbindungsfehler: {e}")
@@ -111,54 +39,17 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Tabellen erstellen (MySQL Syntax)
     cursor.execute("""CREATE TABLE IF NOT EXISTS mitarbeiter_verzeichnis (ID INT AUTO_INCREMENT PRIMARY KEY, Mitarbeitername VARCHAR(255) UNIQUE, Geburtsdatum VARCHAR(20), Personalnummer VARCHAR(50), Bewacher_ID VARCHAR(50), Anstellung VARCHAR(50), Position VARCHAR(50), Vertrag_bis VARCHAR(20), Adresse VARCHAR(255), PLZ VARCHAR(20), Telefonnummer VARCHAR(50), Ausweis_gueltig_bis VARCHAR(20))""")
-    
-    # Achtung: Spaltennamen in MySQL sollten keine Leerzeichen haben, wir nutzen Backticks
     cursor.execute(f"""CREATE TABLE IF NOT EXISTS locations_spalte (ID INT AUTO_INCREMENT PRIMARY KEY, `{OBJECT_COLUMN_NAME}` VARCHAR(255), `{MA_SLOT_COLUMN_NAME}` VARCHAR(255), Ansprechpartner VARCHAR(255), Telefon VARCHAR(100))""")
-    
     cursor.execute("""CREATE TABLE IF NOT EXISTS urlaub_krank (ID INT AUTO_INCREMENT PRIMARY KEY, Datum VARCHAR(20), Mitarbeiter VARCHAR(255), Status VARCHAR(50), UNIQUE KEY ma_date (Datum, Mitarbeiter))""")
-    
     cursor.execute("""CREATE TABLE IF NOT EXISTS einsaetze (EinsatzID INT AUTO_INCREMENT PRIMARY KEY, Datum VARCHAR(20), Objekt VARCHAR(255), MA_Slot VARCHAR(255), Anfang DOUBLE, Ende DOUBLE, Pause DOUBLE, Mitarbeiter VARCHAR(255), Zeit DOUBLE)""")
-    
     conn.commit()
     cursor.close()
     conn.close()
 
-def seed_initial_data(conn):
-    """Fügt Start-Daten in die Datenbank ein, falls diese noch nicht existieren."""
-    cursor = conn.cursor()
-    try:
-        # OPTIMIERUNG: Nur 1 Abfrage statt 100 Abfragen
-        cursor.execute(f"SELECT DISTINCT `{OBJECT_COLUMN_NAME}` FROM locations_spalte")
-        existing_locs = {row[0] for row in cursor.fetchall()}
-
-        new_data = []
-        # Wir prüfen im Python-Speicher, was fehlt (viel schneller)
-        for loc_name in INITIAL_LOCATIONS:
-            if loc_name not in existing_locs:
-                for slot in INITIAL_LOCATIONS[loc_name]:
-                    new_data.append((loc_name, slot))
-        
-        # Massen-Insert (nur 1 Befehl an die Datenbank)
-        if new_data:
-            cursor.executemany(f"INSERT INTO locations_spalte (`{OBJECT_COLUMN_NAME}`, `{MA_SLOT_COLUMN_NAME}`) VALUES (%s, %s)", new_data)
-            conn.commit()
-            
-    except Exception as e:
-        print(f"Info: Initialdaten konnten nicht vollständig angelegt werden (vielleicht existieren sie schon): {e}")
-    finally:
-        cursor.close()
-
-# Einmalige Initialisierung beim Start
 if 'db_initialized' not in st.session_state:
     try:
         init_db()
-        # Automatisch Standorte anlegen
-        conn = get_db_connection()
-        seed_initial_data(conn)
-        conn.close()
-        
         st.session_state['db_initialized'] = True
     except Exception as e:
         st.error(f"Fehler bei der DB-Initialisierung: {e}")
@@ -211,6 +102,10 @@ def calculate_arbeitszeit(anfang_zeit_float, ende_zeit_float, pause_zeit_std):
     return max(0.0, arbeitszeit_stunden)
 
 def validate_einsatz(urlaub_krank_df, mitarbeiter_name, einsatz_datum):
+    # Safety Check: Falls mitarbeiter_name doch eine Series ist (durch Duplikate), nimm den ersten Wert
+    if isinstance(mitarbeiter_name, pd.Series):
+        mitarbeiter_name = mitarbeiter_name.iloc[0]
+        
     if isinstance(einsatz_datum, str):
         try: einsatz_datum = datetime.strptime(einsatz_datum, DATE_FORMAT).date()
         except: pass 
@@ -227,6 +122,10 @@ def validate_einsatz(urlaub_krank_df, mitarbeiter_name, einsatz_datum):
     return True, "OK"
 
 def check_double_booking(conn, mitarbeiter, datum, start_float, end_float, current_object):
+    # Safety Check
+    if isinstance(mitarbeiter, pd.Series):
+        mitarbeiter = mitarbeiter.iloc[0]
+
     if not mitarbeiter or (start_float == 0 and end_float == 0):
         return False, ""
     
@@ -238,7 +137,6 @@ def check_double_booking(conn, mitarbeiter, datum, start_float, end_float, curre
     s1 = start_float; e1 = end_float
     if e1 < s1: e1 += 1.0 
     
-    # MySQL Query (%s statt ?)
     query = "SELECT Objekt, MA_Slot, Anfang, Ende FROM einsaetze WHERE Mitarbeiter = %s AND Datum = %s AND Objekt != %s"
     df_conflicts = pd.read_sql(query, conn, params=(mitarbeiter, date_str, current_object))
     
@@ -253,12 +151,10 @@ def check_double_booking(conn, mitarbeiter, datum, start_float, end_float, curre
             
     return False, ""
 
-# --- 6. DATENBANK OPERATIONEN (MySQL angepasst) ---
+# --- 6. DATENBANK OPERATIONEN ---
 
 @st.cache_data(ttl=60) 
 def load_data_from_db(_conn, table_name):
-    # Bei MySQL müssen Spalten mit Leerzeichen/Sonderzeichen in Backticks, hier sicherheitshalber generell
-    # Einfacher: wir lesen einfach alles
     return pd.read_sql(f"SELECT * FROM {table_name}", _conn)
 
 @st.cache_data(ttl=5) 
@@ -275,11 +171,14 @@ def save_einsaetze_to_db(conn, df_einsaetze, object_name, start_date, end_date):
         e_str = end_date.strftime(DATE_FORMAT)
         cursor.execute("DELETE FROM einsaetze WHERE Objekt = %s AND Datum >= %s AND Datum <= %s", (object_name, s_str, e_str))
         
-        # Batch Insert
         if not df_einsaetze.empty:
             data = []
             for _, row in df_einsaetze.iterrows():
-                data.append((row['Datum'], row['Objekt'], row['MA_Slot'], row['Anfang'], row['Ende'], row['Pause'], row['Mitarbeiter'], row['Zeit']))
+                # Safety checks für Werte
+                ma = row['Mitarbeiter']
+                if isinstance(ma, pd.Series): ma = ma.iloc[0]
+                
+                data.append((row['Datum'], row['Objekt'], row['MA_Slot'], row['Anfang'], row['Ende'], row['Pause'], ma, row['Zeit']))
             
             sql = "INSERT INTO einsaetze (Datum, Objekt, MA_Slot, Anfang, Ende, Pause, Mitarbeiter, Zeit) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
             cursor.executemany(sql, data)
@@ -308,13 +207,11 @@ def update_standort(conn, alter_name, neuer_name, neue_slot_anzahl, aktuelle_slo
         if alter_name != neuer_name: 
             cursor.execute("UPDATE einsaetze SET Objekt = %s WHERE Objekt = %s", (neuer_name, alter_name))
             
+        # Vereinfachte Slot Logik: Nur hinzufügen
         aktuelle_anzahl = len(aktuelle_slots)
         if neue_slot_anzahl > aktuelle_anzahl:
             for i in range(aktuelle_anzahl + 1, neue_slot_anzahl + 1):
                 cursor.execute(f"INSERT INTO locations_spalte (`{OBJECT_COLUMN_NAME}`, `{MA_SLOT_COLUMN_NAME}`, Ansprechpartner, Telefon) VALUES (%s,%s,%s,%s)", (neuer_name, f"MA{i}", neuer_ansprechpartner, neues_telefon))
-        elif neue_slot_anzahl < aktuelle_anzahl:
-            for slot in [s for s in aktuelle_slots if int(s.replace("MA","")) > neue_slot_anzahl]:
-                cursor.execute(f"DELETE FROM locations_spalte WHERE `{OBJECT_COLUMN_NAME}` = %s AND `{MA_SLOT_COLUMN_NAME}` = %s", (neuer_name, slot))
         
         conn.commit()
         return True
@@ -454,7 +351,6 @@ def seite_stammdaten_verwaltung(conn):
     df_ma = load_data_from_db(conn, 'mitarbeiter_verzeichnis')
     df_loc = load_data_from_db(conn, 'locations_spalte')
     
-    # Session State Keys für Reset
     if 'ma_editor_key' not in st.session_state: st.session_state.ma_editor_key = 0
     if 'loc_editor_key' not in st.session_state: st.session_state.loc_editor_key = 0
     
@@ -490,6 +386,22 @@ def seite_stammdaten_verwaltung(conn):
 
     with t2:
         if st.button("➕ Neuer Standort"): dialog_neuer_standort(conn)
+        
+        with st.expander("⚠️ Verwaltungs-Tools (Datenbank bereinigen)"):
+            st.warning("Achtung: Dies löscht alle Standorte aus der Datenbank!")
+            if st.button("Alle Standorte löschen", type="primary"):
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(f"DELETE FROM locations_spalte")
+                    conn.commit()
+                    st.success("Alle Standorte wurden entfernt.")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(str(e))
+                finally:
+                    cursor.close()
+
         if not df_loc.empty:
             df_grp = df_loc.groupby(OBJECT_COLUMN_NAME).agg({
                 MA_SLOT_COLUMN_NAME: list,
@@ -568,10 +480,8 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     info_str = f" ({', '.join(filter(None, [f'Anspr: {anspr}' if anspr else '', f'Tel: {tel}' if tel else '']))})" if anspr or tel else ""
     st.subheader(f"Plan: {obj}{info_str} - {selected_month_str}")
 
-    slots = df_loc[df_loc[OBJECT_COLUMN_NAME]==obj][MA_SLOT_COLUMN_NAME].unique().tolist()
-    # Sortiere Slots alphabetisch
-    try: slots.sort() 
-    except: pass
+    # FIX: Dubletten verhindern
+    slots = sorted(list(set(df_loc[df_loc[OBJECT_COLUMN_NAME]==obj][MA_SLOT_COLUMN_NAME].tolist())))
     
     df_saved = load_einsaetze_for_object(conn, obj)
     rng = pd.date_range(d_start, d_end).normalize().date
@@ -640,9 +550,20 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
 
             for s in slots:
                 ma = row[f'{s}_Mitarbeiter']
+                # FIX: Handle Series (Duplicate Columns Issue)
+                if isinstance(ma, pd.Series): ma = ma.iloc[0]
+                
                 a_float = parse_user_time(row[f'{s}_Anfang'])
+                # FIX: Handle Series
+                if isinstance(a_float, pd.Series): a_float = a_float.iloc[0]
+                
                 e_float = parse_user_time(row[f'{s}_Ende'])
+                # FIX: Handle Series
+                if isinstance(e_float, pd.Series): e_float = e_float.iloc[0]
+                
                 p = row[f'{s}_Pause'] or 0.0
+                # FIX: Handle Series
+                if isinstance(p, pd.Series): p = p.iloc[0]
                 
                 if ma or a_float>0 or e_float>0:
                     if ma:
