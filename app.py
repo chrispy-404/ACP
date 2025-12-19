@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import mysql.connector
 import os
+import re  # WICHTIG: Für die natürliche Sortierung der Zahlen
 from datetime import datetime, date, time as dt_time
 import time
 from dateutil.relativedelta import relativedelta
@@ -56,6 +57,14 @@ if 'db_initialized' not in st.session_state:
         st.error(f"Fehler bei der DB-Initialisierung: {e}")
 
 # --- 5. HELPER & LOGIK ---
+
+def natural_sort_key(s):
+    """
+    Zerlegt String in Text und Zahlen für natürliche Sortierung.
+    Macht aus 'MA10' -> ['ma', 10, ''] und aus 'MA2' -> ['ma', 2, '']
+    Damit wird 2 vor 10 sortiert.
+    """
+    return [int(text) if text.isdigit() else text.lower() for text in re.split('(\d+)', str(s))]
 
 def to_bold(text):
     chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -535,10 +544,14 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     info_str = f" ({', '.join(filter(None, [f'Anspr: {anspr}' if anspr else '', f'Tel: {tel}' if tel else '']))})" if anspr or tel else ""
     st.subheader(f"Plan: {obj}{info_str} - {selected_month_str}")
 
-    slots = sorted(list(set(df_loc[df_loc[OBJECT_COLUMN_NAME]==obj][MA_SLOT_COLUMN_NAME].tolist())))
+    # FIX: Dubletten verhindern
+    raw_slots = list(set(df_loc[df_loc[OBJECT_COLUMN_NAME]==obj][MA_SLOT_COLUMN_NAME].tolist()))
+    slots = sorted(raw_slots, key=natural_sort_key)
+    
     df_saved = load_einsaetze_for_object(conn, obj)
     rng = pd.date_range(d_start, d_end).normalize().date
     df_plan = pd.DataFrame({'Datum': rng})
+    # Wochentag im Datum Text für Anzeige (Wochenende markieren)
     df_plan['Datum_Tag'] = df_plan['Datum'].apply(lambda d: f"{'🟥 ' if d.weekday() >= 5 else ''}{d.strftime('%d.%m.%Y')} ({GERMAN_WEEKDAYS[d.weekday()]})")
     
     col_cfg = {"Datum": None} 
@@ -575,10 +588,18 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     
     # CSV Export Button for German Excel
     st.markdown("### Export")
-    csv_data = df_plan.to_csv(sep=';', index=False, encoding='utf-8-sig')
+    
+    # Gesamstunden für Export berechnen
+    mask_export = (df_saved['Datum'] >= d_start) & (df_saved['Datum'] <= d_end)
+    total_hours_export = df_saved.loc[mask_export, 'Zeit'].sum()
+    formatted_total = format_duration_str(total_hours_export)
+    
+    csv_string = df_plan.to_csv(sep=';', index=False)
+    csv_string += f"\n;Gesamtstunden (Monat):;{formatted_total}"
+    
     st.download_button(
         label="📥 Download als CSV für Excel",
-        data=csv_data,
+        data=csv_string.encode('utf-8-sig'),
         file_name=f"Einsatzplan_{obj}_{selected_month_str}.csv",
         mime="text/csv"
     )
