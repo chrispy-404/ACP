@@ -13,6 +13,7 @@ st.set_page_config(page_title="Digitale Einsatzplanung", layout="wide")
 # --- 2. KONSTANTEN ---
 DATE_FORMAT = '%Y-%m-%d'
 GERMAN_WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+GERMAN_MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
 LOGO_PATH = 'acp_logo.png'
 
 # --- BENUTZER & PASSWÖRTER (Admins) ---
@@ -389,14 +390,12 @@ def seite_mein_plan(conn, username):
     st.subheader("Mein Einsatzplan")
     
     today = date.today()
-    # Zeige aktuellen Monat und nächsten Monat zur Auswahl
     current_month_str = today.strftime("%B %Y")
     next_month_date = today + relativedelta(months=1)
     next_month_str = next_month_date.strftime("%B %Y")
     
     selected_month_disp = st.selectbox("Monat wählen:", [current_month_str, next_month_str])
     
-    # Datumsgrenzen berechnen
     if selected_month_disp == current_month_str:
         calc_date = today
     else:
@@ -405,7 +404,6 @@ def seite_mein_plan(conn, username):
     start_date = date(calc_date.year, calc_date.month, 1)
     end_date = (pd.to_datetime(start_date) + relativedelta(months=1, days=-1)).date()
     
-    # Daten laden für diesen Mitarbeiter
     query = """
         SELECT Datum, Objekt, MA_Slot, Anfang, Ende, Pause, Zeit 
         FROM einsaetze 
@@ -415,26 +413,19 @@ def seite_mein_plan(conn, username):
     df = pd.read_sql(query, conn, params=(username, start_date, end_date))
     
     if not df.empty:
-        # Formatieren für Anzeige
         df['Datum'] = pd.to_datetime(df['Datum'])
         df['Wochentag'] = df['Datum'].apply(lambda x: GERMAN_WEEKDAYS[x.weekday()])
         df['Datum'] = df['Datum'].dt.strftime('%d.%m.%Y')
-        
-        # Zeit formatieren
         df['Von'] = df['Anfang'].apply(float_to_input_str)
         df['Bis'] = df['Ende'].apply(float_to_input_str)
         df['Stunden'] = df['Zeit'].apply(format_duration_str)
         
-        # Spalten auswählen und umbenennen
         display_df = df[['Datum', 'Wochentag', 'Objekt', 'MA_Slot', 'Von', 'Bis', 'Stunden']]
         display_df.columns = ['Datum', 'Tag', 'Objekt', 'Position', 'Von', 'Bis', 'Dauer']
         
         st.table(display_df)
-        
-        # Summe anzeigen
         total_hours = df['Zeit'].sum()
         st.info(f"Gesamtstunden in diesem Monat: **{format_duration_str(total_hours)}**")
-        
     else:
         st.info("Keine Einsätze in diesem Monat gefunden.")
 
@@ -451,29 +442,16 @@ def seite_stammdaten_verwaltung(conn):
     with t1:
         if st.button("➕ Neuer Mitarbeiter"): dialog_neuer_mitarbeiter(conn)
         search = st.text_input("Suche:", placeholder="Name...")
-        
         df_show = df_ma.drop(columns=['ID']).copy()
         df_show.insert(0, "Auswahl", False)
         if search: df_show = df_show[df_show['Mitarbeitername'].str.contains(search, case=False, na=False)]
-        
-        # Sortieren der Anzeige
         df_show = df_show.sort_values(by="Mitarbeitername")
-
         col_config = {
             "Auswahl": st.column_config.CheckboxColumn("Edit", width="small"),
             "Mitarbeitername": st.column_config.TextColumn("Name", width="medium"),
             "Personalnummer": st.column_config.TextColumn("P-Nr (Login)", width="small")
         }
-
-        edited_df = st.data_editor(
-            df_show,
-            column_config=col_config,
-            disabled=df_show.columns.drop("Auswahl"),
-            hide_index=True,
-            use_container_width=True,
-            key=f"editor_ma_{st.session_state.ma_editor_key}"
-        )
-        
+        edited_df = st.data_editor(df_show, column_config=col_config, disabled=df_show.columns.drop("Auswahl"), hide_index=True, use_container_width=True, key=f"editor_ma_{st.session_state.ma_editor_key}")
         selected_rows = edited_df[edited_df["Auswahl"]]
         if not selected_rows.empty:
             row = selected_rows.iloc[0]
@@ -481,7 +459,6 @@ def seite_stammdaten_verwaltung(conn):
 
     with t2:
         if st.button("➕ Neuer Standort"): dialog_neuer_standort(conn)
-        
         with st.expander("⚠️ Verwaltungs-Tools (Datenbank bereinigen)"):
             st.warning("Achtung: Dies löscht alle Standorte aus der Datenbank!")
             if st.button("Alle Standorte löschen", type="primary"):
@@ -492,20 +469,15 @@ def seite_stammdaten_verwaltung(conn):
                     st.success("Alle Standorte wurden entfernt.")
                     time.sleep(1)
                     st.rerun()
-                except Exception as e:
-                    st.error(str(e))
-                finally:
-                    cursor.close()
-
+                except Exception as e: st.error(str(e))
+                finally: cursor.close()
         if not df_loc.empty:
             df_grp = df_loc.groupby(OBJECT_COLUMN_NAME).agg({
                 MA_SLOT_COLUMN_NAME: list,
                 'Ansprechpartner': 'first',
                 'Telefon': 'first'
             }).reset_index().sort_values(OBJECT_COLUMN_NAME)
-            
             df_grp.insert(0, "Auswahl", False)
-            
             col_config_loc = {
                 "Auswahl": st.column_config.CheckboxColumn("Edit", width="small"),
                 OBJECT_COLUMN_NAME: st.column_config.TextColumn("Standort", width="medium"),
@@ -513,17 +485,7 @@ def seite_stammdaten_verwaltung(conn):
                 "Ansprechpartner": st.column_config.TextColumn("Ansprechpartner", width="medium"),
                 "Telefon": st.column_config.TextColumn("Telefon", width="medium")
             }
-            
-            edited_grp = st.data_editor(
-                df_grp,
-                column_config=col_config_loc,
-                disabled=df_grp.columns.drop("Auswahl"),
-                hide_index=True,
-                use_container_width=True,
-                height=1000, 
-                key=f"editor_loc_{st.session_state.loc_editor_key}"
-            )
-            
+            edited_grp = st.data_editor(df_grp, column_config=col_config_loc, disabled=df_grp.columns.drop("Auswahl"), hide_index=True, use_container_width=True, height=1000, key=f"editor_loc_{st.session_state.loc_editor_key}")
             sel_loc = edited_grp[edited_grp["Auswahl"]]
             if not sel_loc.empty:
                 r = sel_loc.iloc[0]
@@ -533,7 +495,6 @@ def seite_stammdaten_verwaltung(conn):
         with st.form("uk"):
             c1,c2,c3=st.columns(3)
             dates = c1.date_input("Zeitraum", [], help="Start & Ende wählen")
-            # Sortierte Mitarbeiterliste für Dropdown
             ma_list_sorted = sorted(df_ma['Mitarbeitername'].unique().tolist())
             ma = c2.selectbox("Mitarbeiter", [""]+ma_list_sorted)
             stat = c3.selectbox("Status", ["Urlaub","Krank","Ausfall","Standby"])
@@ -558,7 +519,6 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     month_options = [datetime(2000, m, 1).strftime("%B") for m in range(1, 13)]
 
     st.sidebar.header("Filter")
-    # Sortierte Standorte in Sidebar
     sorted_locs = sorted(df_loc[OBJECT_COLUMN_NAME].unique())
     obj = st.sidebar.selectbox("Objekt:", sorted_locs)
     
@@ -575,13 +535,10 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     info_str = f" ({', '.join(filter(None, [f'Anspr: {anspr}' if anspr else '', f'Tel: {tel}' if tel else '']))})" if anspr or tel else ""
     st.subheader(f"Plan: {obj}{info_str} - {selected_month_str}")
 
-    # FIX: Dubletten verhindern
     slots = sorted(list(set(df_loc[df_loc[OBJECT_COLUMN_NAME]==obj][MA_SLOT_COLUMN_NAME].tolist())))
-    
     df_saved = load_einsaetze_for_object(conn, obj)
     rng = pd.date_range(d_start, d_end).normalize().date
     df_plan = pd.DataFrame({'Datum': rng})
-    # Wochentag im Datum Text für Anzeige (Wochenende markieren)
     df_plan['Datum_Tag'] = df_plan['Datum'].apply(lambda d: f"{'🟥 ' if d.weekday() >= 5 else ''}{d.strftime('%d.%m.%Y')} ({GERMAN_WEEKDAYS[d.weekday()]})")
     
     col_cfg = {"Datum": None} 
@@ -589,16 +546,12 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
 
     ordered_cols = ['Datum', 'Datum_Tag']
     for slot in slots:
-        # Daten auf Zeitraum filtern
         df_s = df_saved[(df_saved['MA_Slot']==slot) & (df_saved['Datum'] >= d_start) & (df_saved['Datum'] <= d_end)]
         df_s = df_s.rename(columns={'Anfang':f'{slot}_Anfang','Ende':f'{slot}_Ende','Pause':f'{slot}_Pause','Mitarbeiter':f'{slot}_Mitarbeiter', 'Zeit':f'{slot}_Zeit'})
         
-        # Dynamic Autosize Logik:
         has_content = False
         if not df_s.empty:
-            if df_s[f'{slot}_Mitarbeiter'].notna().any() or (df_s[f'{slot}_Anfang'] > 0).any():
-                has_content = True
-            
+            if df_s[f'{slot}_Mitarbeiter'].notna().any() or (df_s[f'{slot}_Anfang'] > 0).any(): has_content = True
             df_s[f'{slot}_Anfang'] = df_s[f'{slot}_Anfang'].apply(float_to_input_str)
             df_s[f'{slot}_Ende'] = df_s[f'{slot}_Ende'].apply(float_to_input_str)
             df_plan = df_plan.merge(df_s[['Datum', f'{slot}_Mitarbeiter', f'{slot}_Anfang', f'{slot}_Ende', f'{slot}_Pause', f'{slot}_Zeit']], on='Datum', how='left')
@@ -606,11 +559,8 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
             for c in [f'{slot}_Mitarbeiter', f'{slot}_Anfang', f'{slot}_Ende', f'{slot}_Pause', f'{slot}_Zeit']: df_plan[c] = None
         
         bold_header = to_bold(slot)
-        
-        # FIX: Autosize für Mitarbeiter (width=None wenn Daten, sonst medium)
         width_ma = None if has_content else "small" 
-        width_time = "small" # Zeiten immer small
-        
+        width_time = "small"
         col_cfg[f'{slot}_Mitarbeiter'] = st.column_config.SelectboxColumn(bold_header, options=MA_LIST, width=width_ma)
         col_cfg[f'{slot}_Anfang'] = st.column_config.TextColumn("Von", width=width_time, help="18, 18:30")
         col_cfg[f'{slot}_Ende'] = st.column_config.TextColumn("Bis", width=width_time)
@@ -619,54 +569,34 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
         ordered_cols.extend([f'{slot}_Mitarbeiter', f'{slot}_Anfang', f'{slot}_Ende', f'{slot}_Pause', f'{slot}_Zeit'])
 
     st.markdown("---")
-    
-    # Formular für Batch-Input (verhindert Reload nach jeder Zelle)
     with st.form("planning_form"):
-        edited = st.data_editor(
-            df_plan[ordered_cols], 
-            column_config=col_cfg, 
-            height=700, 
-            use_container_width=True, 
-            hide_index=True
-        )
-        
+        edited = st.data_editor(df_plan[ordered_cols], column_config=col_cfg, height=700, use_container_width=True, hide_index=True)
         submit_btn = st.form_submit_button("💾 Plan Speichern", type="primary")
     
-    # --- FEHLERMELDUNGEN SAMMELN ---
     error_messages = []
-
     if submit_btn:
         load_einsaetze_for_object.clear(); rows=[]; total=0.0
-        
         for idx, row in edited.iterrows():
             d = df_plan.loc[idx, 'Datum']
             if isinstance(d, str):
                  try: d = datetime.strptime(d, DATE_FORMAT).date()
                  except: pass
-
             for s in slots:
                 ma = safe_get_value(row[f'{s}_Mitarbeiter'])
                 a_float = parse_user_time(row[f'{s}_Anfang'])
                 e_float = parse_user_time(row[f'{s}_Ende'])
                 p = safe_get_value(row[f'{s}_Pause']) or 0.0
-                
                 if ma or a_float>0 or e_float>0:
                     if ma:
                         val, msg = validate_einsatz(df_uk, ma, d)
-                        if not val: 
-                            error_messages.append(f"{d.strftime('%d.%m.%Y')} - {ma}: {msg}")
-                        
+                        if not val: error_messages.append(f"{d.strftime('%d.%m.%Y')} - {ma}: {msg}")
                         is_double, dbl_msg = check_double_booking(conn, ma, d, a_float, e_float, obj)
-                        if is_double:
-                             error_messages.append(f"{d.strftime('%d.%m.%Y')} - {ma}: ❌ {dbl_msg}")
-                    
+                        if is_double: error_messages.append(f"{d.strftime('%d.%m.%Y')} - {ma}: ❌ {dbl_msg}")
                     t = calculate_arbeitszeit(a_float, e_float, p)
                     total += t
                     rows.append({'Datum':d.strftime(DATE_FORMAT), 'Objekt':obj, 'MA_Slot':s, 'Anfang':a_float, 'Ende':e_float, 'Pause':p, 'Mitarbeiter':ma, 'Zeit':t})
-        
         if error_messages:
-            for err in error_messages:
-                st.error(err)
+            for err in error_messages: st.error(err)
             st.warning("❌ Speichern abgebrochen aufgrund von Konflikten. Bitte korrigieren.")
         else:
             try:
@@ -675,7 +605,6 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
                 time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Fehler: {e}")
     
-    # --- MONATSAUSWERTUNG ---
     mask = (df_saved['Datum'] >= d_start) & (df_saved['Datum'] <= d_end)
     df_period = df_saved.loc[mask]
     if not df_period.empty:
@@ -688,74 +617,47 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
 # --- NEUE FUNKTION: Aggregierte Daten für Auswertung laden ---
 @st.cache_data(ttl=5)
 def load_aggregated_data(_conn, selected_month_str):
-    """Lädt Einsätze und Urlaubstage und kombiniert sie für die Auswertung."""
-    # 1. Einsätze
-    query_einsaetze = "SELECT Mitarbeiter, Zeit, Datum, Objekt, MA_Slot FROM einsaetze WHERE Mitarbeiter != ''"
+    query_einsaetze = "SELECT Mitarbeiter, Zeit, Datum, Objekt, MA_Slot, Anfang, Ende, Pause FROM einsaetze WHERE Mitarbeiter != ''"
     df_einsaetze = pd.read_sql(query_einsaetze, _conn)
-    # 2. Urlaub/Krank
     query_uk = "SELECT Mitarbeiter, Status, Datum FROM urlaub_krank"
     df_uk = pd.read_sql(query_uk, _conn)
-    
-    # 3. Konvertieren
     for df in [df_einsaetze, df_uk]:
         if not df.empty:
             df['Datum'] = pd.to_datetime(df['Datum'])
             df['Monat'] = df['Datum'].dt.to_period('M').astype(str)
-            
-    # Filter
     df_e_monat = df_einsaetze[df_einsaetze['Monat'] == selected_month_str] if not df_einsaetze.empty else pd.DataFrame()
     df_uk_monat = df_uk[df_uk['Monat'] == selected_month_str] if not df_uk.empty else pd.DataFrame()
-    
     return df_e_monat, df_uk_monat
+
+def format_month_display(yyyy_mm):
+    y, m = yyyy_mm.split('-')
+    return f"{GERMAN_MONTHS[int(m)-1]} {y}"
 
 def seite_mitarbeiter_uebersicht(conn):
     st.header("Auswertung")
-    
-    # Wir brauchen eine Liste aller verfügbaren Monate aus beiden Tabellen
     df_e_raw = pd.read_sql("SELECT Datum FROM einsaetze", conn)
     df_uk_raw = pd.read_sql("SELECT Datum FROM urlaub_krank", conn)
+    all_dates = pd.concat([pd.to_datetime(df_e_raw['Datum']), pd.to_datetime(df_uk_raw['Datum'])]).dropna()
+    if all_dates.empty: st.info("Keine Daten vorhanden."); return
     
-    all_dates = pd.concat([
-        pd.to_datetime(df_e_raw['Datum']), 
-        pd.to_datetime(df_uk_raw['Datum'])
-    ]).dropna()
-    
-    if all_dates.empty:
-        st.info("Keine Daten vorhanden."); return
-        
     available_months = sorted(all_dates.dt.to_period('M').astype(str).unique(), reverse=True)
-    monat = st.selectbox("Monat", available_months)
+    monat = st.selectbox("Monat", available_months, format_func=format_month_display)
     
-    # Lade kombinierte Daten
     df_work, df_absense = load_aggregated_data(conn, monat)
     
     # Aggregation Arbeitszeit
     res_work = pd.DataFrame()
     if not df_work.empty:
-        # HIER DIE ÄNDERUNG: Group by Mitarbeiter UND Objekt/Slot um "Einteilung" zu erhalten
-        # Wir wollen pro Mitarbeiter eine Liste der Einteilungen
-        
-        # 1. Stunden summieren
         res_work = df_work.groupby('Mitarbeiter')['Zeit'].sum().reset_index()
         res_work.rename(columns={'Zeit': 'Arbeitsstunden'}, inplace=True)
         res_work['Arbeitszeit_Format'] = res_work['Arbeitsstunden'].apply(format_duration_str)
-        
-        # 2. Einteilung (Objekt + Slot) aggregieren
-        # Wir gruppieren nochmal, diesmal nur um die Strings zu sammeln
-        einteilung = df_work.groupby('Mitarbeiter').apply(
-            lambda x: ", ".join(sorted(set([f"{row['Objekt']} ({row['MA_Slot']})" for _, row in x.iterrows()])))
-        ).reset_index(name='Einteilung')
-        
+        einteilung = df_work.groupby('Mitarbeiter').apply(lambda x: ", ".join(sorted(set([f"{row['Objekt']} ({row['MA_Slot']})" for _, row in x.iterrows()])))).reset_index(name='Einteilung')
         res_work = pd.merge(res_work, einteilung, on='Mitarbeiter')
 
-
-    # Aggregation Abwesenheit (Zählen der Tage pro Status)
     res_absense = pd.DataFrame()
     if not df_absense.empty:
-        # Pivot-Tabelle: Mitarbeiter als Zeilen, Status als Spalten, Werte sind Anzahl Tage
         res_absense = df_absense.groupby(['Mitarbeiter', 'Status']).size().unstack(fill_value=0).reset_index()
         
-    # Zusammenführen (Full Outer Join, damit auch MA ohne Arbeit aber mit Urlaub erscheinen)
     if res_work.empty and res_absense.empty:
         st.warning("Keine Daten für diesen Monat.")
         return
@@ -766,68 +668,68 @@ def seite_mitarbeiter_uebersicht(conn):
         df_final = res_work
     else:
         df_final = res_absense
-        
     df_final = df_final.fillna(0)
     
-    # Spalten sortieren und anzeigen
-    st.subheader(f"Übersicht für {monat}")
+    st.subheader(f"Übersicht für {format_month_display(monat)}")
     
-    # Stelle sicher, dass Spalten existieren
     if 'Arbeitszeit_Format' not in df_final.columns: df_final['Arbeitszeit_Format'] = "0 Std 0 Min"
     if 'Einteilung' not in df_final.columns: df_final['Einteilung'] = "-"
     
-    # Definiere Spaltenreihenfolge: Mitarbeiter | Einteilung | Zeit | ...Status...
     cols = ['Mitarbeiter', 'Einteilung', 'Arbeitszeit_Format']
-    
-    # Füge dynamische Status-Spalten hinzu (Urlaub, Krank...)
     status_cols = [c for c in df_final.columns if c not in ['Mitarbeiter', 'Arbeitsstunden', 'Arbeitszeit_Format', 'Einteilung']]
     cols.extend(status_cols)
     
-    # DataFrame anzeigen
     st.dataframe(df_final[cols], use_container_width=True, hide_index=True)
-    
     st.divider()
     
-    # Detailansicht
     all_employees = df_final['Mitarbeiter'].unique()
-    sel = st.selectbox("Details für Mitarbeiter:", all_employees)
+    options = ["ALLE MITARBEITER"] + sorted(all_employees.tolist())
+    sel = st.selectbox("Details für Mitarbeiter:", options)
     
-    st.markdown(f"**Details für {sel}**")
-    
-    # Hole Details für Arbeit
-    details_work = df_work[df_work['Mitarbeiter'] == sel].copy() if not df_work.empty else pd.DataFrame()
-    if not details_work.empty:
-        details_work['Typ'] = 'Arbeit'
-        details_work['Info'] = details_work.apply(lambda x: f"{x['Objekt']} ({x['MA_Slot']})", axis=1)
-        details_work['Dauer'] = details_work['Zeit'].apply(format_duration_str)
-    
-    # Hole Details für Abwesenheit
-    details_absense = df_absense[df_absense['Mitarbeiter'] == sel].copy() if not df_absense.empty else pd.DataFrame()
-    if not details_absense.empty:
-        details_absense['Typ'] = details_absense['Status']
-        details_absense['Info'] = '-'
-        details_absense['Dauer'] = '1 Tag'
+    if sel == "ALLE MITARBEITER":
+        rows = []
+        if not df_work.empty:
+            for _, r in df_work.iterrows():
+                rows.append({
+                    "Datum": r['Datum'], "Name": r['Mitarbeiter'], "Typ": "Arbeit",
+                    "Einteilung": f"{r['Objekt']} ({r['MA_Slot']})",
+                    "Von": float_to_input_str(r['Anfang']), "Bis": float_to_input_str(r['Ende']),
+                    "Pause": f"{r['Pause']:.2f}", "Dauer": format_duration_str(r['Zeit'])
+                })
+        if not df_absense.empty:
+            for _, r in df_absense.iterrows():
+                rows.append({
+                    "Datum": r['Datum'], "Name": r['Mitarbeiter'], "Typ": r['Status'],
+                    "Einteilung": "-", "Von": "-", "Bis": "-", "Pause": "-", "Dauer": "Tag"
+                })
         
-        # WICHTIG: Damit Urlaub nicht von 0-Stunden-Arbeit überschrieben wird, prüfen wir hier nicht weiter.
-        # Aber im Combined DF (unten) werden beide angezeigt.
-        # Wenn Sie wollen, dass Arbeitseinträge mit 0 Stunden NICHT angezeigt werden, filtern wir sie raus:
-        details_work = details_work[details_work['Zeit'] > 0]
-    
-    # Kombinieren
-    if not details_work.empty or not details_absense.empty:
-        w_cols = details_work[['Datum', 'Typ', 'Info', 'Dauer']] if not details_work.empty else pd.DataFrame()
-        a_cols = details_absense[['Datum', 'Typ', 'Info', 'Dauer']] if not details_absense.empty else pd.DataFrame()
-        
-        df_combined_details = pd.concat([w_cols, a_cols])
-        
-        if not df_combined_details.empty:
-            df_combined_details = df_combined_details.sort_values('Datum')
-            df_combined_details['Datum'] = df_combined_details['Datum'].dt.strftime('%d.%m.%Y')
-            st.dataframe(df_combined_details, use_container_width=True, hide_index=True)
+        if rows:
+            df_all = pd.DataFrame(rows)
+            df_all = df_all.sort_values(by=['Datum', 'Name'])
+            df_all['Datum'] = df_all['Datum'].dt.strftime('%d.%m.%Y')
+            st.dataframe(df_all[['Datum', 'Name', 'Typ', 'Einteilung', 'Von', 'Bis', 'Pause', 'Dauer']], hide_index=True, use_container_width=True)
         else:
-             st.info("Keine Details verfügbar.")
+            st.info("Keine Daten.")
+            
     else:
-        st.info("Keine Details verfügbar.")
+        st.markdown(f"**Details für {sel}**")
+        details_work = df_work[df_work['Mitarbeiter'] == sel].copy() if not df_work.empty else pd.DataFrame()
+        if not details_work.empty:
+            details_work['Typ'] = 'Arbeit'; details_work['Info'] = details_work.apply(lambda x: f"{x['Objekt']} ({x['MA_Slot']})", axis=1); details_work['Dauer'] = details_work['Zeit'].apply(format_duration_str)
+        
+        details_absense = df_absense[df_absense['Mitarbeiter'] == sel].copy() if not df_absense.empty else pd.DataFrame()
+        if not details_absense.empty:
+            details_absense['Typ'] = details_absense['Status']; details_absense['Info'] = '-'; details_absense['Dauer'] = '1 Tag'; details_work = details_work[details_work['Zeit'] > 0]
+        
+        if not details_work.empty or not details_absense.empty:
+            w_cols = details_work[['Datum', 'Typ', 'Info', 'Dauer']] if not details_work.empty else pd.DataFrame()
+            a_cols = details_absense[['Datum', 'Typ', 'Info', 'Dauer']] if not details_absense.empty else pd.DataFrame()
+            df_combined_details = pd.concat([w_cols, a_cols])
+            if not df_combined_details.empty:
+                df_combined_details = df_combined_details.sort_values('Datum'); df_combined_details['Datum'] = df_combined_details['Datum'].dt.strftime('%d.%m.%Y')
+                st.dataframe(df_combined_details, use_container_width=True, hide_index=True)
+            else: st.info("Keine Details verfügbar.")
+        else: st.info("Keine Details verfügbar.")
 
 # --- MAIN ---
 
