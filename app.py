@@ -645,155 +645,138 @@ def seite_mitarbeiter_uebersicht(conn):
     
     df_work, df_absense = load_aggregated_data(conn, monat)
     
-    # Aggregation Arbeitszeit
-    res_work = pd.DataFrame()
-    if not df_work.empty:
-        res_work = df_work.groupby('Mitarbeiter')['Zeit'].sum().reset_index()
-        res_work.rename(columns={'Zeit': 'Arbeitsstunden'}, inplace=True)
-        res_work['Arbeitszeit_Format'] = res_work['Arbeitsstunden'].apply(format_duration_str)
-        einteilung = df_work.groupby('Mitarbeiter').apply(lambda x: ", ".join(sorted(set([f"{row['Objekt']} ({row['MA_Slot']})" for _, row in x.iterrows()])))).reset_index(name='Einteilung')
-        res_work = pd.merge(res_work, einteilung, on='Mitarbeiter')
-
-    res_absense = pd.DataFrame()
-    if not df_absense.empty:
-        res_absense = df_absense.groupby(['Mitarbeiter', 'Status']).size().unstack(fill_value=0).reset_index()
-        
-    if res_work.empty and res_absense.empty:
-        st.warning("Keine Daten für diesen Monat.")
-        return
-        
-    if not res_work.empty and not res_absense.empty:
-        df_final = pd.merge(res_work, res_absense, on='Mitarbeiter', how='outer')
-    elif not res_work.empty:
-        df_final = res_work
-    else:
-        df_final = res_absense
-    df_final = df_final.fillna(0)
-    
-    st.subheader(f"Übersicht für {format_month_display(monat)}")
-    
-    if 'Arbeitszeit_Format' not in df_final.columns: df_final['Arbeitszeit_Format'] = "0 Std 0 Min"
-    if 'Einteilung' not in df_final.columns: df_final['Einteilung'] = "-"
-    
-    cols = ['Mitarbeiter', 'Einteilung', 'Arbeitszeit_Format']
-    status_cols = [c for c in df_final.columns if c not in ['Mitarbeiter', 'Arbeitsstunden', 'Arbeitszeit_Format', 'Einteilung']]
-    cols.extend(status_cols)
-    
-    st.dataframe(df_final[cols], use_container_width=True, hide_index=True)
-    st.divider()
+    # Vorbereitung der Daten für detaillierte Übersicht (immer berechnen)
+    y_str, m_str = monat.split('-')
+    year = int(y_str)
+    month = int(m_str)
+    start_date = date(year, month, 1)
+    end_date = (pd.to_datetime(start_date) + relativedelta(months=1, days=-1)).date()
+    date_rng = pd.date_range(start_date, end_date)
     
     all_employees = sorted(load_data_from_db(conn, 'mitarbeiter_verzeichnis')['Mitarbeitername'].unique().tolist())
-    options = ["ALLE MITARBEITER"] + all_employees
-    sel = st.selectbox("Details für Mitarbeiter:", options)
     
-    if sel == "ALLE MITARBEITER":
-        # 1. Monatsbereich berechnen
-        y_str, m_str = monat.split('-')
-        year = int(y_str)
-        month = int(m_str)
-        start_date = date(year, month, 1)
-        end_date = (pd.to_datetime(start_date) + relativedelta(months=1, days=-1)).date()
-        date_rng = pd.date_range(start_date, end_date)
-        
-        # 2. Cross Join: Alle Tage x Alle Mitarbeiter
-        df_dates = pd.DataFrame({'Datum_Obj': date_rng})
-        df_dates['Datum'] = df_dates['Datum_Obj'].dt.strftime('%Y-%m-%d')
-        df_dates['Wochentag'] = df_dates['Datum_Obj'].apply(lambda x: GERMAN_WEEKDAYS[x.weekday()])
-        df_users = pd.DataFrame({'Mitarbeiter': all_employees})
-        df_full = df_dates.merge(df_users, how='cross')
-        
-        # 3. Daten vorbereiten
-        if not df_work.empty:
-            df_work_merge = df_work.copy()
-            df_work_merge['Datum'] = df_work_merge['Datum'].dt.strftime('%Y-%m-%d')
-            df_work_merge = df_work_merge[['Datum', 'Mitarbeiter', 'Objekt', 'MA_Slot', 'Anfang', 'Ende', 'Pause', 'Zeit']]
-        else:
-            df_work_merge = pd.DataFrame(columns=['Datum', 'Mitarbeiter', 'Objekt', 'MA_Slot', 'Anfang', 'Ende', 'Pause', 'Zeit'])
-            
-        if not df_absense.empty:
-            df_absense_merge = df_absense.copy()
-            df_absense_merge['Datum'] = df_absense_merge['Datum'].dt.strftime('%Y-%m-%d')
-            df_absense_merge = df_absense_merge[['Datum', 'Mitarbeiter', 'Status']]
-        else:
-            df_absense_merge = pd.DataFrame(columns=['Datum', 'Mitarbeiter', 'Status'])
-        
-        # 4. Mergen
-        df_merged = pd.merge(df_full, df_work_merge, on=['Datum', 'Mitarbeiter'], how='left')
-        df_merged = pd.merge(df_merged, df_absense_merge, on=['Datum', 'Mitarbeiter'], how='left')
-        
-        rows = []
-        for _, row in df_merged.iterrows():
-            datum_display = datetime.strptime(row['Datum'], '%Y-%m-%d').strftime('%d.%m.%Y')
-            datum_full = f"{datum_display} ({row['Wochentag']})"
-            
-            if pd.notna(row['Objekt']):
-                typ = "Arbeit"
-                einteilung = f"{row['Objekt']} ({row['MA_Slot']})"
-                von = float_to_input_str(row['Anfang'])
-                bis = float_to_input_str(row['Ende'])
-                pause = f"{row['Pause']:.2f}" if pd.notna(row['Pause']) else "-"
-                dauer = format_duration_str(row['Zeit'])
-            elif pd.notna(row['Status']):
-                typ = row['Status']
-                einteilung = "-"
-                von = "-"
-                bis = "-"
-                pause = "-"
-                dauer = "Tag"
-            else:
-                typ = "-"
-                einteilung = "-"
-                von = "-"
-                bis = "-"
-                pause = "-"
-                dauer = "-"
-            
-            rows.append({
-                "Datum": row['Datum_Obj'], 
-                "Datum_Anzeige": datum_full,
-                "Name": row['Mitarbeiter'],
-                "Typ": typ,
-                "Einteilung": einteilung,
-                "Von": von,
-                "Bis": bis,
-                "Pause": pause,
-                "Dauer": dauer
-            })
-            
-        df_all = pd.DataFrame(rows)
-        df_all = df_all.sort_values(by=['Datum', 'Name'])
-        
-        # Filter Checkbox
-        filter_free = st.checkbox("Nur Verfügbare (-) anzeigen")
-        if filter_free:
-            df_all = df_all[df_all['Typ'] == "-"]
-
-        st.dataframe(
-            df_all[['Datum_Anzeige', 'Name', 'Typ', 'Einteilung', 'Von', 'Bis', 'Pause', 'Dauer']], 
-            hide_index=True, 
-            use_container_width=True,
-            column_config={"Datum_Anzeige": st.column_config.TextColumn("Datum")}
-        )
-            
+    # Cross Join: Alle Tage x Alle Mitarbeiter
+    df_dates = pd.DataFrame({'Datum_Obj': date_rng})
+    df_dates['Datum'] = df_dates['Datum_Obj'].dt.strftime('%Y-%m-%d')
+    df_dates['Wochentag'] = df_dates['Datum_Obj'].apply(lambda x: GERMAN_WEEKDAYS[x.weekday()])
+    df_users = pd.DataFrame({'Mitarbeiter': all_employees})
+    df_full = df_dates.merge(df_users, how='cross')
+    
+    # Daten vorbereiten
+    if not df_work.empty:
+        df_work_merge = df_work.copy()
+        df_work_merge['Datum'] = df_work_merge['Datum'].dt.strftime('%Y-%m-%d')
+        df_work_merge = df_work_merge[['Datum', 'Mitarbeiter', 'Objekt', 'MA_Slot', 'Anfang', 'Ende', 'Pause', 'Zeit']]
     else:
-        st.markdown(f"**Details für {sel}**")
-        details_work = df_work[df_work['Mitarbeiter'] == sel].copy() if not df_work.empty else pd.DataFrame()
-        if not details_work.empty:
-            details_work['Typ'] = 'Arbeit'; details_work['Info'] = details_work.apply(lambda x: f"{x['Objekt']} ({x['MA_Slot']})", axis=1); details_work['Dauer'] = details_work['Zeit'].apply(format_duration_str)
+        df_work_merge = pd.DataFrame(columns=['Datum', 'Mitarbeiter', 'Objekt', 'MA_Slot', 'Anfang', 'Ende', 'Pause', 'Zeit'])
         
-        details_absense = df_absense[df_absense['Mitarbeiter'] == sel].copy() if not df_absense.empty else pd.DataFrame()
-        if not details_absense.empty:
-            details_absense['Typ'] = details_absense['Status']; details_absense['Info'] = '-'; details_absense['Dauer'] = '1 Tag'; details_work = details_work[details_work['Zeit'] > 0]
+    if not df_absense.empty:
+        df_absense_merge = df_absense.copy()
+        df_absense_merge['Datum'] = df_absense_merge['Datum'].dt.strftime('%Y-%m-%d')
+        df_absense_merge = df_absense_merge[['Datum', 'Mitarbeiter', 'Status']]
+    else:
+        df_absense_merge = pd.DataFrame(columns=['Datum', 'Mitarbeiter', 'Status'])
+    
+    # Mergen
+    df_merged = pd.merge(df_full, df_work_merge, on=['Datum', 'Mitarbeiter'], how='left')
+    df_merged = pd.merge(df_merged, df_absense_merge, on=['Datum', 'Mitarbeiter'], how='left')
+    
+    rows = []
+    for _, row in df_merged.iterrows():
+        datum_display = datetime.strptime(row['Datum'], '%Y-%m-%d').strftime('%d.%m.%Y')
+        datum_full = f"{datum_display} ({row['Wochentag']})"
         
-        if not details_work.empty or not details_absense.empty:
-            w_cols = details_work[['Datum', 'Typ', 'Info', 'Dauer']] if not details_work.empty else pd.DataFrame()
-            a_cols = details_absense[['Datum', 'Typ', 'Info', 'Dauer']] if not details_absense.empty else pd.DataFrame()
-            df_combined_details = pd.concat([w_cols, a_cols])
-            if not df_combined_details.empty:
-                df_combined_details = df_combined_details.sort_values('Datum'); df_combined_details['Datum'] = df_combined_details['Datum'].dt.strftime('%d.%m.%Y')
-                st.dataframe(df_combined_details, use_container_width=True, hide_index=True)
-            else: st.info("Keine Details verfügbar.")
-        else: st.info("Keine Details verfügbar.")
+        if pd.notna(row['Objekt']):
+            typ = "Arbeit"
+            einteilung = f"{row['Objekt']} ({row['MA_Slot']})"
+            von = float_to_input_str(row['Anfang'])
+            bis = float_to_input_str(row['Ende'])
+            pause = f"{row['Pause']:.2f}" if pd.notna(row['Pause']) else "-"
+            dauer = format_duration_str(row['Zeit'])
+        elif pd.notna(row['Status']):
+            typ = row['Status']
+            einteilung = "-"
+            von = "-"
+            bis = "-"
+            pause = "-"
+            dauer = "Tag"
+        else:
+            typ = "-"
+            einteilung = "-"
+            von = "-"
+            bis = "-"
+            pause = "-"
+            dauer = "-"
+        
+        rows.append({
+            "Datum": row['Datum_Obj'], 
+            "Datum_Anzeige": datum_full,
+            "Name": row['Mitarbeiter'],
+            "Typ": typ,
+            "Einteilung": einteilung,
+            "Von": von,
+            "Bis": bis,
+            "Pause": pause,
+            "Dauer": dauer
+        })
+        
+    df_all = pd.DataFrame(rows)
+    df_all = df_all.sort_values(by=['Datum', 'Name'])
+
+    st.subheader(f"Übersicht für {format_month_display(monat)}")
+    
+    # Filter-Optionen für die Hauptansicht
+    c_filter1, c_filter2 = st.columns(2)
+    sel_ma = c_filter1.selectbox("Mitarbeiter filtern:", ["ALLE MITARBEITER"] + all_employees)
+    filter_free = c_filter2.checkbox("Nur Verfügbare (-) anzeigen")
+    
+    # Filtern
+    df_view = df_all.copy()
+    if sel_ma != "ALLE MITARBEITER":
+        df_view = df_view[df_view['Name'] == sel_ma]
+    
+    if filter_free:
+        df_view = df_view[df_view['Typ'] == "-"]
+
+    st.dataframe(
+        df_view[['Datum_Anzeige', 'Name', 'Typ', 'Einteilung', 'Von', 'Bis', 'Pause', 'Dauer']], 
+        hide_index=True, 
+        use_container_width=True,
+        column_config={"Datum_Anzeige": st.column_config.TextColumn("Datum")}
+    )
+    
+    st.divider()
+    
+    # Kleine Statistik-Tabelle (ehemals Hauptansicht)
+    with st.expander("Statistik (Stunden & Abwesenheit)"):
+        # Aggregation Arbeitszeit
+        res_work = pd.DataFrame()
+        if not df_work.empty:
+            res_work = df_work.groupby('Mitarbeiter')['Zeit'].sum().reset_index()
+            res_work.rename(columns={'Zeit': 'Arbeitsstunden'}, inplace=True)
+            res_work['Arbeitszeit_Format'] = res_work['Arbeitsstunden'].apply(format_duration_str)
+
+        res_absense = pd.DataFrame()
+        if not df_absense.empty:
+            res_absense = df_absense.groupby(['Mitarbeiter', 'Status']).size().unstack(fill_value=0).reset_index()
+            
+        if not res_work.empty or not res_absense.empty:
+            if not res_work.empty and not res_absense.empty:
+                df_final = pd.merge(res_work, res_absense, on='Mitarbeiter', how='outer')
+            elif not res_work.empty:
+                df_final = res_work
+            else:
+                df_final = res_absense
+            df_final = df_final.fillna(0)
+            
+            if 'Arbeitszeit_Format' not in df_final.columns: df_final['Arbeitszeit_Format'] = "0 Std 0 Min"
+            cols = ['Mitarbeiter', 'Arbeitszeit_Format']
+            status_cols = [c for c in df_final.columns if c not in ['Mitarbeiter', 'Arbeitsstunden', 'Arbeitszeit_Format']]
+            cols.extend(status_cols)
+            
+            st.dataframe(df_final[cols], use_container_width=True, hide_index=True)
+        else:
+            st.info("Keine Daten für Statistik.")
 
 # --- MAIN ---
 
