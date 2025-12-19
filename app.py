@@ -682,34 +682,92 @@ def seite_mitarbeiter_uebersicht(conn):
     st.dataframe(df_final[cols], use_container_width=True, hide_index=True)
     st.divider()
     
-    all_employees = df_final['Mitarbeiter'].unique()
-    options = ["ALLE MITARBEITER"] + sorted(all_employees.tolist())
+    all_employees = sorted(load_data_from_db(conn, 'mitarbeiter_verzeichnis')['Mitarbeitername'].unique().tolist())
+    options = ["ALLE MITARBEITER"] + all_employees
     sel = st.selectbox("Details für Mitarbeiter:", options)
     
     if sel == "ALLE MITARBEITER":
-        rows = []
-        if not df_work.empty:
-            for _, r in df_work.iterrows():
-                rows.append({
-                    "Datum": r['Datum'], "Name": r['Mitarbeiter'], "Typ": "Arbeit",
-                    "Einteilung": f"{r['Objekt']} ({r['MA_Slot']})",
-                    "Von": float_to_input_str(r['Anfang']), "Bis": float_to_input_str(r['Ende']),
-                    "Pause": f"{r['Pause']:.2f}", "Dauer": format_duration_str(r['Zeit'])
-                })
-        if not df_absense.empty:
-            for _, r in df_absense.iterrows():
-                rows.append({
-                    "Datum": r['Datum'], "Name": r['Mitarbeiter'], "Typ": r['Status'],
-                    "Einteilung": "-", "Von": "-", "Bis": "-", "Pause": "-", "Dauer": "Tag"
-                })
+        # 1. Monatsbereich berechnen
+        y_str, m_str = monat.split('-')
+        year = int(y_str)
+        month = int(m_str)
+        start_date = date(year, month, 1)
+        end_date = (pd.to_datetime(start_date) + relativedelta(months=1, days=-1)).date()
+        date_rng = pd.date_range(start_date, end_date)
         
-        if rows:
-            df_all = pd.DataFrame(rows)
-            df_all = df_all.sort_values(by=['Datum', 'Name'])
-            df_all['Datum'] = df_all['Datum'].dt.strftime('%d.%m.%Y')
-            st.dataframe(df_all[['Datum', 'Name', 'Typ', 'Einteilung', 'Von', 'Bis', 'Pause', 'Dauer']], hide_index=True, use_container_width=True)
+        # 2. Cross Join: Alle Tage x Alle Mitarbeiter
+        df_dates = pd.DataFrame({'Datum_Obj': date_rng})
+        df_dates['Datum'] = df_dates['Datum_Obj'].dt.strftime('%Y-%m-%d')
+        df_dates['Wochentag'] = df_dates['Datum_Obj'].apply(lambda x: GERMAN_WEEKDAYS[x.weekday()])
+        df_users = pd.DataFrame({'Mitarbeiter': all_employees})
+        df_full = df_dates.merge(df_users, how='cross')
+        
+        # 3. Daten vorbereiten
+        if not df_work.empty:
+            df_work_merge = df_work.copy()
+            df_work_merge['Datum'] = df_work_merge['Datum'].dt.strftime('%Y-%m-%d')
+            df_work_merge = df_work_merge[['Datum', 'Mitarbeiter', 'Objekt', 'MA_Slot', 'Anfang', 'Ende', 'Pause', 'Zeit']]
         else:
-            st.info("Keine Daten.")
+            df_work_merge = pd.DataFrame(columns=['Datum', 'Mitarbeiter', 'Objekt', 'MA_Slot', 'Anfang', 'Ende', 'Pause', 'Zeit'])
+            
+        if not df_absense.empty:
+            df_absense_merge = df_absense.copy()
+            df_absense_merge['Datum'] = df_absense_merge['Datum'].dt.strftime('%Y-%m-%d')
+            df_absense_merge = df_absense_merge[['Datum', 'Mitarbeiter', 'Status']]
+        else:
+            df_absense_merge = pd.DataFrame(columns=['Datum', 'Mitarbeiter', 'Status'])
+        
+        # 4. Mergen
+        df_merged = pd.merge(df_full, df_work_merge, on=['Datum', 'Mitarbeiter'], how='left')
+        df_merged = pd.merge(df_merged, df_absense_merge, on=['Datum', 'Mitarbeiter'], how='left')
+        
+        rows = []
+        for _, row in df_merged.iterrows():
+            datum_display = datetime.strptime(row['Datum'], '%Y-%m-%d').strftime('%d.%m.%Y')
+            datum_full = f"{datum_display} ({row['Wochentag']})"
+            
+            if pd.notna(row['Objekt']):
+                typ = "Arbeit"
+                einteilung = f"{row['Objekt']} ({row['MA_Slot']})"
+                von = float_to_input_str(row['Anfang'])
+                bis = float_to_input_str(row['Ende'])
+                pause = f"{row['Pause']:.2f}" if pd.notna(row['Pause']) else "-"
+                dauer = format_duration_str(row['Zeit'])
+            elif pd.notna(row['Status']):
+                typ = row['Status']
+                einteilung = "-"
+                von = "-"
+                bis = "-"
+                pause = "-"
+                dauer = "Tag"
+            else:
+                typ = "Frei"
+                einteilung = "-"
+                von = "-"
+                bis = "-"
+                pause = "-"
+                dauer = "-"
+            
+            rows.append({
+                "Datum": row['Datum_Obj'], 
+                "Datum_Anzeige": datum_full,
+                "Name": row['Mitarbeiter'],
+                "Typ": typ,
+                "Einteilung": einteilung,
+                "Von": von,
+                "Bis": bis,
+                "Pause": pause,
+                "Dauer": dauer
+            })
+            
+        df_all = pd.DataFrame(rows)
+        df_all = df_all.sort_values(by=['Datum', 'Name'])
+        st.dataframe(
+            df_all[['Datum_Anzeige', 'Name', 'Typ', 'Einteilung', 'Von', 'Bis', 'Pause', 'Dauer']], 
+            hide_index=True, 
+            use_container_width=True,
+            column_config={"Datum_Anzeige": st.column_config.TextColumn("Datum")}
+        )
             
     else:
         st.markdown(f"**Details für {sel}**")
