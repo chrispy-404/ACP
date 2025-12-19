@@ -444,6 +444,7 @@ def seite_stammdaten_verwaltung(conn):
     t1, t2, t3 = st.tabs(["Mitarbeiter", "Standorte", "Urlaub/Krank"])
     df_ma = load_data_from_db(conn, 'mitarbeiter_verzeichnis')
     df_loc = load_data_from_db(conn, 'locations_spalte')
+    df_uk = load_data_from_db(conn, 'urlaub_krank')
     
     if 'ma_editor_key' not in st.session_state: st.session_state.ma_editor_key = 0
     if 'loc_editor_key' not in st.session_state: st.session_state.loc_editor_key = 0
@@ -518,6 +519,44 @@ def seite_stammdaten_verwaltung(conn):
                         conn.commit(); st.success("OK"); load_data_from_db.clear()
                     except Exception as e: conn.rollback(); st.error(str(e))
                     finally: cursor.close()
+        
+        st.divider()
+        st.subheader("Übersicht Abwesenheiten")
+        if not df_uk.empty:
+            df_uk['Datum_Sort'] = pd.to_datetime(df_uk['Datum'])
+            df_display = df_uk.sort_values(by=['Datum_Sort', 'Mitarbeiter'], ascending=[False, True])
+            df_display['Datum_Anzeige'] = df_display['Datum_Sort'].dt.strftime('%d.%m.%Y')
+            df_display.insert(0, "Löschen", False)
+            
+            edited_uk = st.data_editor(
+                df_display[['Löschen', 'ID', 'Datum_Anzeige', 'Mitarbeiter', 'Status']],
+                column_config={
+                    "Löschen": st.column_config.CheckboxColumn(width="small"),
+                    "ID": None,
+                    "Datum_Anzeige": st.column_config.TextColumn("Datum"),
+                },
+                disabled=['ID', 'Datum_Anzeige', 'Mitarbeiter', 'Status'],
+                hide_index=True,
+                use_container_width=True,
+                key="uk_list_editor"
+            )
+            
+            if st.button("Ausgewählte Einträge löschen"):
+                to_delete = edited_uk[edited_uk['Löschen']]
+                if not to_delete.empty:
+                    cursor = conn.cursor()
+                    try:
+                        for _, row in to_delete.iterrows():
+                            cursor.execute("DELETE FROM urlaub_krank WHERE ID = %s", (row['ID'],))
+                        conn.commit()
+                        st.success("Einträge gelöscht!")
+                        load_data_from_db.clear()
+                        time.sleep(0.5)
+                        st.rerun()
+                    except Exception as e: st.error(str(e))
+                    finally: cursor.close()
+        else:
+            st.info("Keine Einträge vorhanden.")
 
 def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     st.header("Einsatzplanung")
