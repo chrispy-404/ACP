@@ -573,6 +573,16 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
         edited = st.data_editor(df_plan[ordered_cols], column_config=col_cfg, height=700, use_container_width=True, hide_index=True)
         submit_btn = st.form_submit_button("💾 Plan Speichern", type="primary")
     
+    # CSV Export Button for German Excel
+    st.markdown("### Export")
+    csv_data = df_plan.to_csv(sep=';', index=False, encoding='utf-8-sig')
+    st.download_button(
+        label="📥 Download als CSV für Excel",
+        data=csv_data,
+        file_name=f"Einsatzplan_{obj}_{selected_month_str}.csv",
+        mime="text/csv"
+    )
+    
     error_messages = []
     if submit_btn:
         load_einsaetze_for_object.clear(); rows=[]; total=0.0
@@ -683,8 +693,10 @@ def seite_mitarbeiter_uebersicht(conn):
     
     rows = []
     for _, row in df_merged.iterrows():
-        datum_display = datetime.strptime(row['Datum'], '%Y-%m-%d').strftime('%d.%m.%Y')
-        datum_full = f"{datum_display} ({row['Wochentag']})"
+        d_obj = datetime.strptime(row['Datum'], '%Y-%m-%d')
+        datum_display = d_obj.strftime('%d.%m.%Y')
+        prefix = "🟥 " if d_obj.weekday() >= 5 else ""
+        datum_full = f"{prefix}{datum_display} ({row['Wochentag']})"
         
         if pd.notna(row['Objekt']):
             typ = "Arbeit"
