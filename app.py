@@ -15,8 +15,8 @@ DATE_FORMAT = '%Y-%m-%d'
 GERMAN_WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 LOGO_PATH = 'acp_logo.png'
 
-# --- BENUTZER & PASSWÖRTER ---
-USER_CREDENTIALS = {
+# --- BENUTZER & PASSWÖRTER (Admins) ---
+ADMIN_CREDENTIALS = {
     'admin': 'admin123',
     'planer': 'planer2025',
     'saki': 'saki123'
@@ -77,7 +77,6 @@ def float_to_input_str(val):
     return f"{hours:02d}:{mins:02d}"
 
 def safe_get_value(val):
-    """Extrahiert sicher einen einzelnen Wert, egal ob Scalar, Series oder Array."""
     if isinstance(val, (pd.Series, np.ndarray, list)):
         if len(val) > 0:
             if hasattr(val, 'iloc'): return val.iloc[0]
@@ -251,26 +250,60 @@ def update_mitarbeiter(conn, altes_profil, new_vals):
 def check_login():
     if 'logged_in' not in st.session_state:
         st.session_state['logged_in'] = False
+        st.session_state['role'] = None # 'admin' or 'mitarbeiter'
+        st.session_state['username'] = None
+
     if not st.session_state['logged_in']:
         col1, col2, col3 = st.columns([1,1,1])
         with col2:
             if os.path.exists(LOGO_PATH):
                 st.image(LOGO_PATH, use_container_width=True)
             st.header("Anmeldung")
-            username = st.text_input("Benutzername")
-            password = st.text_input("Passwort", type="password")
+            username = st.text_input("Benutzername", placeholder="Name (Admin oder Mitarbeiter)")
+            password = st.text_input("Passwort", type="password", placeholder="Passwort oder Personalnummer")
+            
             if st.button("Einloggen", type="primary"):
-                if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
+                # 1. Check Admin
+                if username in ADMIN_CREDENTIALS and ADMIN_CREDENTIALS[username] == password:
                     st.session_state['logged_in'] = True
                     st.session_state['username'] = username
+                    st.session_state['role'] = 'admin'
                     st.rerun()
+                
+                # 2. Check Mitarbeiter (DB)
                 else:
-                    st.error("Falscher Benutzername oder Passwort")
+                    try:
+                        conn = get_db_connection()
+                        cursor = conn.cursor()
+                        # Suche Mitarbeiter mit diesem Namen
+                        query = "SELECT Personalnummer FROM mitarbeiter_verzeichnis WHERE Mitarbeitername = %s"
+                        cursor.execute(query, (username,))
+                        result = cursor.fetchone()
+                        cursor.close()
+                        conn.close()
+
+                        if result:
+                            stored_pnr = result[0]
+                            # Prüfe ob Personalnummer übereinstimmt (und nicht leer ist)
+                            if stored_pnr and str(stored_pnr).strip() == str(password).strip():
+                                st.session_state['logged_in'] = True
+                                st.session_state['username'] = username
+                                st.session_state['role'] = 'mitarbeiter'
+                                st.rerun()
+                            else:
+                                st.error("Falsches Passwort (Personalnummer).")
+                        else:
+                            st.error("Benutzer nicht gefunden.")
+                    except Exception as e:
+                        st.error(f"Login Fehler: {e}")
+
         return False
     return True
 
 def logout():
     st.session_state['logged_in'] = False
+    st.session_state['role'] = None
+    st.session_state['username'] = None
     st.rerun()
 
 # --- DIALOGE ---
@@ -309,12 +342,13 @@ def dialog_edit_standort(conn, name, slots, anspr, tel):
 def dialog_neuer_mitarbeiter(conn):
     with st.form("new_ma"):
         name = st.text_input("Name *")
+        st.info("ℹ️ Die Personalnummer ist das Passwort für den Mitarbeiter-Login!")
         c1,c2 = st.columns(2)
-        geb=c1.date_input("Geburtsdatum", value=date(2000,1,1)); pnr=c1.text_input("Personalnr"); anst=c1.text_input("Anstellung"); pos=c1.text_input("Position"); tel=c1.text_input("Tel")
+        geb=c1.date_input("Geburtsdatum", value=date(2000,1,1)); pnr=c1.text_input("Personalnr (Passwort) *"); anst=c1.text_input("Anstellung"); pos=c1.text_input("Position"); tel=c1.text_input("Tel")
         bid=c2.text_input("Bewacher ID"); vbis=c2.date_input("Vertrag bis", value=date(2026,1,1)); abis=c2.date_input("Ausweis bis", value=date(2027,1,1))
         adr=st.text_input("Adresse"); plz=st.text_input("PLZ")
         if st.form_submit_button("Speichern", type="primary"):
-            if name:
+            if name and pnr:
                 cursor = conn.cursor()
                 try:
                     cursor.execute("INSERT INTO mitarbeiter_verzeichnis (Mitarbeitername, Geburtsdatum, Personalnummer, Bewacher_ID, Anstellung, Position, Vertrag_bis, Adresse, PLZ, Telefonnummer, Ausweis_gueltig_bis) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
@@ -322,6 +356,8 @@ def dialog_neuer_mitarbeiter(conn):
                     conn.commit(); st.success("OK"); load_data_from_db.clear(); time.sleep(0.5); st.rerun()
                 except Exception as e: conn.rollback(); st.error(str(e))
                 finally: cursor.close()
+            else:
+                st.error("Name und Personalnummer sind Pflicht!")
 
 @st.dialog("Mitarbeiter bearbeiten")
 def dialog_edit_mitarbeiter(conn, row):
@@ -331,7 +367,7 @@ def dialog_edit_mitarbeiter(conn, row):
             try: return pd.to_datetime(x).date()
             except: return date(2000,1,1)
         c1,c2 = st.columns(2)
-        geb=c1.date_input("Geb", value=d(row['Geburtsdatum'])); pnr=c1.text_input("Pnr", value=row['Personalnummer'] or ""); anst=c1.text_input("Anst", value=row['Anstellung'] or ""); pos=c1.text_input("Pos", value=row['Position'] or ""); tel=c1.text_input("Tel", value=row['Telefonnummer'] or "")
+        geb=c1.date_input("Geb", value=d(row['Geburtsdatum'])); pnr=c1.text_input("Pnr (Passwort)", value=row['Personalnummer'] or ""); anst=c1.text_input("Anst", value=row['Anstellung'] or ""); pos=c1.text_input("Pos", value=row['Position'] or ""); tel=c1.text_input("Tel", value=row['Telefonnummer'] or "")
         bid=c2.text_input("BID", value=row['Bewacher_ID'] or ""); vbis=c2.date_input("V-Bis", value=d(row['Vertrag_bis'])); abis=c2.date_input("A-Bis", value=d(row['Ausweis_gueltig_bis']))
         adr=st.text_input("Adr", value=row['Adresse'] or ""); plz=st.text_input("PLZ", value=row['PLZ'] or "")
         s = st.form_submit_button("Speichern")
@@ -347,7 +383,62 @@ def dialog_edit_mitarbeiter(conn, row):
             st.session_state.ma_editor_key += 1
             time.sleep(0.5); st.rerun()
 
-# --- SEITEN ---
+# --- NEUE SEITE: MEIN PLAN (Für Mitarbeiter) ---
+def seite_mein_plan(conn, username):
+    st.header(f"👋 Hallo {username}")
+    st.subheader("Mein Einsatzplan")
+    
+    today = date.today()
+    # Zeige aktuellen Monat und nächsten Monat zur Auswahl
+    current_month_str = today.strftime("%B %Y")
+    next_month_date = today + relativedelta(months=1)
+    next_month_str = next_month_date.strftime("%B %Y")
+    
+    selected_month_disp = st.selectbox("Monat wählen:", [current_month_str, next_month_str])
+    
+    # Datumsgrenzen berechnen
+    if selected_month_disp == current_month_str:
+        calc_date = today
+    else:
+        calc_date = next_month_date
+        
+    start_date = date(calc_date.year, calc_date.month, 1)
+    end_date = (pd.to_datetime(start_date) + relativedelta(months=1, days=-1)).date()
+    
+    # Daten laden für diesen Mitarbeiter
+    query = """
+        SELECT Datum, Objekt, MA_Slot, Anfang, Ende, Pause, Zeit 
+        FROM einsaetze 
+        WHERE Mitarbeiter = %s AND Datum >= %s AND Datum <= %s
+        ORDER BY Datum
+    """
+    df = pd.read_sql(query, conn, params=(username, start_date, end_date))
+    
+    if not df.empty:
+        # Formatieren für Anzeige
+        df['Datum'] = pd.to_datetime(df['Datum'])
+        df['Wochentag'] = df['Datum'].apply(lambda x: GERMAN_WEEKDAYS[x.weekday()])
+        df['Datum'] = df['Datum'].dt.strftime('%d.%m.%Y')
+        
+        # Zeit formatieren
+        df['Von'] = df['Anfang'].apply(float_to_input_str)
+        df['Bis'] = df['Ende'].apply(float_to_input_str)
+        df['Stunden'] = df['Zeit'].apply(format_duration_str)
+        
+        # Spalten auswählen und umbenennen
+        display_df = df[['Datum', 'Wochentag', 'Objekt', 'MA_Slot', 'Von', 'Bis', 'Stunden']]
+        display_df.columns = ['Datum', 'Tag', 'Objekt', 'Position', 'Von', 'Bis', 'Dauer']
+        
+        st.table(display_df)
+        
+        # Summe anzeigen
+        total_hours = df['Zeit'].sum()
+        st.info(f"Gesamtstunden in diesem Monat: **{format_duration_str(total_hours)}**")
+        
+    else:
+        st.info("Keine Einsätze in diesem Monat gefunden.")
+
+# --- SEITEN (Admin) ---
 def seite_stammdaten_verwaltung(conn):
     st.header("Stammdatenverwaltung")
     t1, t2, t3 = st.tabs(["Mitarbeiter", "Standorte", "Urlaub/Krank"])
@@ -370,7 +461,8 @@ def seite_stammdaten_verwaltung(conn):
 
         col_config = {
             "Auswahl": st.column_config.CheckboxColumn("Edit", width="small"),
-            "Mitarbeitername": st.column_config.TextColumn("Name", width="medium")
+            "Mitarbeitername": st.column_config.TextColumn("Name", width="medium"),
+            "Personalnummer": st.column_config.TextColumn("P-Nr (Login)", width="small")
         }
 
         edited_df = st.data_editor(
@@ -428,7 +520,7 @@ def seite_stammdaten_verwaltung(conn):
                 disabled=df_grp.columns.drop("Auswahl"),
                 hide_index=True,
                 use_container_width=True,
-                height=1000, # Increased height
+                height=1000, 
                 key=f"editor_loc_{st.session_state.loc_editor_key}"
             )
             
@@ -492,7 +584,6 @@ def seite_einsatzplanung(conn, df_loc, df_uk, MA_LIST):
     # Wochentag im Datum Text für Anzeige (Wochenende markieren)
     df_plan['Datum_Tag'] = df_plan['Datum'].apply(lambda d: f"{'🟥 ' if d.weekday() >= 5 else ''}{d.strftime('%d.%m.%Y')} ({GERMAN_WEEKDAYS[d.weekday()]})")
     
-    # FIX: Datum Spalte "medium" -> Mehr Platz für '01.01.2025 (Do)'
     col_cfg = {"Datum": None} 
     col_cfg['Datum_Tag'] = st.column_config.TextColumn(label="Datum", width="medium", disabled=True)
 
@@ -750,7 +841,16 @@ if check_login():
         logout()
 
     MA_LIST = [""] + load_data_from_db(conn, 'mitarbeiter_verzeichnis')['Mitarbeitername'].unique().tolist()
-    pg = st.sidebar.radio("Menü", ["Einsatzplanung", "Auswertung", "Stammdaten"])
-    if pg == "Einsatzplanung": seite_einsatzplanung(conn, load_data_from_db(conn, 'locations_spalte'), load_data_from_db(conn, 'urlaub_krank'), MA_LIST)
-    elif pg == "Auswertung": seite_mitarbeiter_uebersicht(conn)
-    elif pg == "Stammdaten": seite_stammdaten_verwaltung(conn)
+    
+    # ROLLE PRÜFEN
+    role = st.session_state.get('role', 'mitarbeiter') # Fallback to mitarbeiter if undefined
+    
+    if role == 'admin':
+        pg = st.sidebar.radio("Menü", ["Einsatzplanung", "Auswertung", "Stammdaten"])
+        if pg == "Einsatzplanung": seite_einsatzplanung(conn, load_data_from_db(conn, 'locations_spalte'), load_data_from_db(conn, 'urlaub_krank'), MA_LIST)
+        elif pg == "Auswertung": seite_mitarbeiter_uebersicht(conn)
+        elif pg == "Stammdaten": seite_stammdaten_verwaltung(conn)
+    else:
+        # Menü für normale Mitarbeiter
+        st.sidebar.info("Eingeschränkte Ansicht für Mitarbeiter")
+        seite_mein_plan(conn, st.session_state.get('username'))
