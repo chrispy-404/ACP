@@ -762,6 +762,12 @@ def seite_mitarbeiter_uebersicht(conn):
             
         df_all = pd.DataFrame(rows)
         df_all = df_all.sort_values(by=['Datum', 'Name'])
+        
+        # Filter Checkbox
+        filter_free = st.checkbox("Nur Verfügbare (-) anzeigen")
+        if filter_free:
+            df_all = df_all[df_all['Typ'] == "-"]
+
         st.dataframe(
             df_all[['Datum_Anzeige', 'Name', 'Typ', 'Einteilung', 'Von', 'Bis', 'Pause', 'Dauer']], 
             hide_index=True, 
