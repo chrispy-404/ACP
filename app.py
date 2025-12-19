@@ -741,7 +741,7 @@ def seite_mitarbeiter_uebersicht(conn):
                 pause = "-"
                 dauer = "Tag"
             else:
-                typ = "Frei"
+                typ = "-"
                 einteilung = "-"
                 von = "-"
                 bis = "-"
